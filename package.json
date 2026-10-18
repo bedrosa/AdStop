@@ -25,6 +25,7 @@
     "@adguard/scriptlets": "2.5.1",
     "esbuild": "0.25.12",
     "fflate": "0.8.2",
-    "playwright": "1.56.1"
+    "playwright": "1.56.1",
+    "sharp": "0.34.5"
   }
 }

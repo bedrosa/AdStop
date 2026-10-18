@@ -1,12 +1,12 @@
 :root {
-  color-scheme: dark;
-  --bg:#0d1422;
-  --panel:#141e2f;
-  --line:#263247;
-  --text:#eff5fb;
-  --muted:#9aaac0;
-  --accent:#46e0ae;
-  --danger:#ff9d9d;
+  color-scheme: light;
+  --bg:#ffffff;
+  --panel:#ffffff;
+  --line:#eedfe2;
+  --text:#30252a;
+  --muted:#67545c;
+  --accent:#df2537;
+  --danger:#b91c2c;
   font-family:
     Inter,
     "Segoe UI",
@@ -70,7 +70,7 @@ a:hover {
   color: var(--accent);
 }
 .local-label {
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 1.3px;
   font-weight: 650;
   color: var(--muted);
@@ -92,10 +92,10 @@ h2 {
   line-height: 1.65;
 }
 .caption {
-  font-size: 11px;
+  font-size: 12px;
 }
 .hint {
-  font-size: 12px;
+  font-size: 13px;
   margin-top: 18px;
 }
 .eyebrow {
@@ -129,7 +129,7 @@ h2 {
 small {
   display: block;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 400;
   line-height: 1.6;
   margin-top: 5px;
@@ -139,7 +139,7 @@ input[role=switch] {
   flex: 0 0 38px;
   width: 38px;
   height: 22px;
-  background: #344158;
+  background: #ddd3d6;
   border-radius: 20px;
   position: relative;
   cursor: pointer;
@@ -154,7 +154,7 @@ input[role=switch]:before {
   border-radius: 50%;
   top: 3px;
   left: 3px;
-  background: #ced7e5;
+  background: #ffffff;
   transition: transform .15s;
 }
 input[role=switch]:checked {
@@ -162,7 +162,7 @@ input[role=switch]:checked {
 }
 input[role=switch]:checked:before {
   transform: translateX(16px);
-  background: #10271f;
+  background: #ffffff;
 }
 .error {
   color: var(--danger);
@@ -182,24 +182,24 @@ input[role=switch]:checked:before {
 .primary {
   border: 1px solid var(--accent);
   background: var(--accent);
-  color: #10271f;
+  color: #ffffff;
 }
 .primary:hover {
-  background: #75ebc4;
+  background: #c51c2e;
 }
 .secondary {
-  border: 1px solid #3b4b65;
+  border: 1px solid #e5c8ce;
   background: transparent;
   color: var(--text);
 }
 .secondary:hover {
-  background: #223047;
+  background: #fff0f3;
 }
 .text-button {
   background: none;
   border: 0;
   color: var(--text);
-  font-size: 12px;
+  font-size: 13px;
   padding: 0;
 }
 .text-button:hover {
@@ -209,15 +209,15 @@ input[role=switch]:checked:before {
   width: 356px;
 }
 .brand-row {
-  padding: 16px 22px 14px;
+  padding: 14px 22px 12px;
   border-bottom: 1px solid var(--line);
 }
 .popup main {
-  padding: 14px 22px 12px;
+  padding: 12px 22px 10px;
 }
 .site-label {
   color: var(--muted);
-  font-size: 12px;
+  font-size: 13px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -225,19 +225,19 @@ input[role=switch]:checked:before {
 }
 .protection {
   text-align: center;
-  padding: 16px 0;
+  padding: 14px 0;
 }
 .power {
-  width: 72px;
-  height: 72px;
+  width: 64px;
+  height: 64px;
   border-radius: 50%;
-  border: 1px solid #359c7c;
+  border: 1px solid #eeb0b8;
   background:
     radial-gradient(
       circle,
-      #46e0ae25,
-      #46e0ae08);
-  box-shadow: 0 0 35px #46e0ae0a;
+      #df253712,
+      #df253703);
+  box-shadow: 0 0 35px #df253708;
   color: var(--accent);
   display: grid;
   place-items: center;
@@ -245,7 +245,7 @@ input[role=switch]:checked:before {
   transition: background .2s;
 }
 .power:hover {
-  background: #46e0ae25;
+  background: #df253718;
 }
 .power svg {
   width: 34px;
@@ -256,9 +256,9 @@ input[role=switch]:checked:before {
   stroke-linecap: round;
 }
 .power.off {
-  border-color: #475268;
+  border-color: #ded3d7;
   color: var(--muted);
-  background: #1b2535;
+  background: #f7f3f4;
   box-shadow: none;
 }
 .protection h1 {
@@ -267,7 +267,7 @@ input[role=switch]:checked:before {
   margin-bottom: 8px;
 }
 .protection p {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--muted);
   line-height: 1.5;
   min-height: 18px;
@@ -287,10 +287,10 @@ input[role=switch]:checked:before {
   letter-spacing: -1px;
 }
 .blocked-summary span {
-  font-size: 12px;
+  font-size: 14px;
 }
 .blocked-summary small {
-  font-size: 11px;
+  font-size: 12px;
   margin-top: 3px;
 }
 .blocked-details {
@@ -300,10 +300,10 @@ input[role=switch]:checked:before {
   list-style: none;
   margin: 8px 0 0;
   padding: 0;
-  max-height: 100px;
+  max-height: 96px;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: #3b4b65 transparent;
+  scrollbar-color: #d9b7be transparent;
 }
 .blocked-list li {
   display: flex;
@@ -311,7 +311,8 @@ input[role=switch]:checked:before {
   justify-content: space-between;
   gap: 12px;
   padding: 8px 0;
-  font-size: 11px;
+  font-size: 13px;
+  font-weight: 500;
 }
 .blocked-list li + li {
   border-top: 1px solid var(--line);
@@ -324,22 +325,22 @@ input[role=switch]:checked:before {
 }
 .blocked-list li strong {
   color: var(--accent);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 600;
 }
 .blocked-empty {
   padding: 14px 0 4px;
-  font-size: 11px;
+  font-size: 13px;
   color: var(--muted);
 }
 .popup .switch-row {
-  font-size: 12px;
+  font-size: 14px;
   border: 0;
   padding: 12px 0 6px;
 }
 .popup footer {
   padding: 16px 22px;
-  background: #101a2b;
+  background: #fff6f7;
   border-top: 1px solid var(--line);
 }
 .popup footer button {
@@ -350,12 +351,16 @@ input[role=switch]:checked:before {
 .popup .caption {
   margin-top: 8px;
 }
+.reload-extension {
+  margin-top: 10px;
+  width: 100%;
+}
 .options {
   padding: 0 32px;
   background:
     radial-gradient(
       ellipse at 80% 0,
-      #1b3d3b30,
+      #df253709,
       transparent 42%),
     var(--bg);
 }
@@ -370,12 +375,12 @@ input[role=switch]:checked:before {
   margin: auto;
 }
 .intro {
-  padding: 62px 0 36px;
+  padding: 36px 0 26px;
 }
 .intro h1 {
-  font-size: 52px;
-  line-height: 1.12;
-  letter-spacing: -2.2px;
+  font-size: 32px;
+  line-height: 1.2;
+  letter-spacing: -.8px;
   font-weight: 650;
 }
 .intro h1 span {
@@ -384,7 +389,7 @@ input[role=switch]:checked:before {
 .intro > p:last-child {
   font-size: 15px;
   color: var(--muted);
-  margin-top: 20px;
+  margin-top: 12px;
   line-height: 1.6;
 }
 .settings-panel {
@@ -408,9 +413,9 @@ textarea {
   display: block;
   resize: vertical;
   margin-top: 14px;
-  background: #0f1828;
-  color: #d7e3f2;
-  border: 1px solid #34435c;
+  background: #fffafb;
+  color: #30252a;
+  border: 1px solid #e6d4d9;
   border-radius: 9px;
   padding: 14px;
   line-height: 1.6;
@@ -422,7 +427,7 @@ textarea {
   min-height: 100px;
 }
 textarea::placeholder {
-  color: #61728e;
+  color: #9c8890;
 }
 .css-editor {
   display: block;
@@ -435,13 +440,13 @@ textarea::placeholder {
   justify-content: space-between;
   gap: 20px;
   align-items: center;
-  background: #1b2b3df5;
-  border: 1px solid #395269;
+  background: #fffffff5;
+  border: 1px solid #e5c3cc;
   border-radius: 12px;
   padding: 16px 20px;
   margin: 22px 0 36px;
   z-index: 2;
-  box-shadow: 0 10px 30px #0005;
+  box-shadow: 0 10px 30px #4c102018;
 }
 .save-bar p {
   font-size: 12px;
@@ -474,22 +479,19 @@ textarea::placeholder {
 .sources + .hint {
   margin-bottom: 18px;
 }
-.backup-panel {
+.platform-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 28px;
+  margin-top: 12px;
+}
+.platform-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
-}
-.backup-panel h2 {
-  font-size: 18px;
-  margin-bottom: 8px;
-}
-.backup-panel p {
-  font-size: 12px;
-}
-.button-row {
-  display: flex;
-  gap: 10px;
+  gap: 16px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--line);
 }
 .options-footer {
   display: flex;
@@ -510,16 +512,16 @@ textarea::placeholder {
     padding-top: 38px;
   }
   .intro h1 {
-    font-size: 40px;
+    font-size: 28px;
   }
   .settings-panel {
     padding: 22px 20px;
   }
   .editor-grid,
-  .sources {
+  .sources,
+  .platform-grid {
     grid-template-columns: 1fr;
   }
-  .backup-panel,
   .save-bar {
     align-items: stretch;
     flex-direction: column;

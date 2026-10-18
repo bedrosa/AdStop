@@ -1,3 +1,5 @@
+import { streamingPlatforms } from './platforms.js';
+
 export const defaults = {
   enabled: true,
   cosmetic: true,
@@ -7,6 +9,7 @@ export const defaults = {
   extended: true,
   allowlist: [],
   blockedDomains: [],
+  disabledPlatforms: [],
   customCss: ''
 };
 
@@ -44,6 +47,9 @@ export function validateSettings(input) {
     }
     value[key] = [...new Set(input[key].map(normalizeDomain))].sort();
   }
+  const disabled = input.disabledPlatforms ?? [];
+  if (!Array.isArray(disabled) || disabled.some(id => !streamingPlatforms.some(platform => platform.id === id))) throw new Error('Plataforma no válida');
+  value.disabledPlatforms = [...new Set(disabled)].sort();
   if (typeof input.customCss !== 'string' || input.customCss.length > 100000) throw new Error('La lista de elementos es demasiado larga');
   for (const line of input.customCss.split('\n').map(item => item.trim()).filter(Boolean)) {
     const split = line.indexOf('##');
@@ -57,7 +63,11 @@ export function validateSettings(input) {
 }
 
 export function siteEnabled(settings, hostname) {
-  return settings.enabled && !settings.allowlist.some(domain => domainMatches(hostname, domain));
+  return settings.enabled && !exceptionDomains(settings).some(domain => domainMatches(hostname, domain));
+}
+
+export function exceptionDomains(settings) {
+  return [...new Set([...settings.allowlist, ...streamingPlatforms.filter(platform => settings.disabledPlatforms?.includes(platform.id)).flatMap(platform => platform.domains)])];
 }
 
 export function settingsRules(settings) {
@@ -66,7 +76,7 @@ export function settingsRules(settings) {
   if (!settings.enabled) {
     rules.push({ id: id++, priority: 1000000000, action: { type: 'allowAllRequests' }, condition: { resourceTypes: ['main_frame', 'sub_frame'], urlFilter: '|http' } });
   }
-  for (const domain of settings.allowlist) {
+  for (const domain of exceptionDomains(settings)) {
     rules.push({ id: id++, priority: 1000000000, action: { type: 'allowAllRequests' }, condition: { resourceTypes: ['main_frame', 'sub_frame'], requestDomains: [domain] } });
   }
   for (const domain of settings.blockedDomains) {

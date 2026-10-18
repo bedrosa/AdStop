@@ -42,7 +42,7 @@ try {
   const extensionPath = path.resolve('dist/chromium');
   context = await chromium.launchPersistentContext(profile, {
     channel: 'chromium', headless: true,
-    args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`, '--no-proxy-server', '--host-resolver-rules=MAP *.adstop.test 127.0.0.1, MAP ads.doubleclick.net 127.0.0.1, MAP www.youtube.com 127.0.0.1, MAP www.twitch.tv 127.0.0.1, MAP tune.pk 127.0.0.1'],
+    args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`, '--no-proxy-server', '--host-resolver-rules=MAP *.adstop.test 127.0.0.1, MAP ads.doubleclick.net 127.0.0.1, MAP www.youtube.com 127.0.0.1, MAP www.twitch.tv 127.0.0.1, MAP www.netflix.com 127.0.0.1, MAP tune.pk 127.0.0.1'],
     viewport: { width: 1200, height: 900 }
   });
   let worker;
@@ -137,7 +137,7 @@ try {
     assert.equal((await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts())).length, 0);
     assert.equal((await save(initial.settings)).ok, true);
   });
-  await check('una importación inválida conserva la configuración anterior', async () => {
+  await check('una configuración inválida conserva los ajustes anteriores', async () => {
     const result = await save({ ...initial.settings, allowlist: ['dominio.com/ruta'] });
     assert.equal(result.ok, false);
     assert.deepEqual((await status()).settings.allowlist, []);
@@ -194,23 +194,20 @@ try {
     assert.equal(await page.evaluate(() => window.twitchAdSolutionsVersion), undefined);
     assert.equal((await save(initial.settings)).ok, true);
   });
-  await check('ajustes, exportación e importación desde la interfaz', async () => {
+  await check('ajustes y plataformas desde la interfaz', async () => {
     await ui.reload();
     await ui.waitForFunction(() => document.querySelector('#version').textContent !== '');
     await ui.locator('#allowlist').fill('permitida.adstop.test');
     await ui.locator('#save').click();
     await ui.waitForFunction(() => document.querySelector('#message').textContent.startsWith('Cambios guardados'));
     assert.deepEqual((await status()).settings.allowlist, ['permitida.adstop.test']);
-    const downloadEvent = ui.waitForEvent('download');
-    await ui.locator('#export').click();
-    const download = await downloadEvent;
-    const backupPath = path.join(resultsRoot, 'backup.json');
-    await download.saveAs(backupPath);
-    assert.equal(JSON.parse(await readFile(backupPath, 'utf8')).format, 'adstop-settings');
-    await save(initial.settings);
-    await ui.locator('#import-file').setInputFiles(backupPath);
-    await ui.waitForFunction(() => document.querySelector('#message').textContent.startsWith('Ajustes importados'));
-    assert.deepEqual((await status()).settings.allowlist, ['permitida.adstop.test']);
+    assert.equal(await ui.locator('#export, #import, #import-file').count(), 0);
+    assert.ok(await ui.locator('#streaming-platforms input').count() >= 20);
+    await ui.locator('#platform-netflix').uncheck();
+    await ui.locator('#platform-disney').uncheck();
+    await ui.locator('#save').click();
+    await ui.waitForFunction(() => !document.querySelector('#save').disabled);
+    assert.deepEqual((await status()).settings.disabledPlatforms, ['disney', 'netflix']);
     await save(initial.settings);
     await ui.reload();
     await ui.waitForFunction(() => document.querySelector('#version').textContent !== '');
@@ -220,6 +217,22 @@ try {
     await ui.setViewportSize({ width: 390, height: 844 });
     assert.equal(await ui.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     await ui.screenshot({ path: path.join(resultsRoot, 'options-mobile.png'), fullPage: true });
+  });
+  await check('Netflix aplica su filtro y respeta el control por plataforma', async () => {
+    await page.goto(`http://www.netflix.com:${port}/watch/1`);
+    assert.equal(await page.evaluate(() => {
+      const data = {};
+      const result = Object.defineProperty(data, 'adBreaks', { value: [1], configurable: true });
+      return result === data && data.adBreaks.length === 0;
+    }), true);
+    assert.equal(await tryRequest(), false);
+    assert.equal((await save({ ...initial.settings, disabledPlatforms: ['netflix'] })).ok, true);
+    await page.reload();
+    assert.equal(await page.evaluate(() => Object.defineProperty({}, 'adBreaks', { value: [1] }).adBreaks.length), 1);
+    assert.equal(await tryRequest(), true);
+    const registered = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts());
+    assert.ok(registered.every(script => script.excludeMatches.includes('*://*.netflix.com/*')));
+    assert.equal((await save(initial.settings)).ok, true);
   });
   await check('el popup muestra bloqueos reales y actualiza su lista en directo', async () => {
     await page.goto(`http://www.adstop.test:${port}/`);
@@ -256,6 +269,25 @@ try {
     assert.equal(await popup.locator('#blocked-list li').count(), 0);
     await save(initial.settings);
     await popup.close();
+  });
+  await check('una actualización pendiente muestra cómo recargar AdStop', async () => {
+    const outdated = await context.newPage();
+    await outdated.addInitScript(() => {
+      const send = chrome.runtime.sendMessage.bind(chrome.runtime);
+      chrome.runtime.sendMessage = async message => {
+        const result = await send(message);
+        if (message.type === 'status') delete result.page;
+        return result;
+      };
+      chrome.runtime.reload = () => { window.adstopReloadRequested = true; };
+    });
+    await outdated.goto(`chrome-extension://${id}/popup.html`);
+    await outdated.locator('#reload-extension').waitFor({ state: 'visible' });
+    assert.ok((await outdated.locator('#error').textContent()).includes('actualización pendiente'));
+    assert.equal(await outdated.locator('#power').isDisabled(), true);
+    await outdated.locator('#reload-extension').click();
+    assert.equal(await outdated.evaluate(() => window.adstopReloadRequested), true);
+    await outdated.close();
   });
   await writeFile(path.join(resultsRoot, 'browser-checks.json'), JSON.stringify({ browser: await context.browser().version(), checks, livePlatformsTested: false }, null, 2));
   console.log(`${checks.length} comprobaciones de navegador superadas`);

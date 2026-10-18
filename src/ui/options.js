@@ -1,4 +1,4 @@
-import { defaults } from '../shared/settings.js';
+import { streamingPlatforms } from '../shared/platforms.js';
 
 const toggles = ['enabled', 'cosmetic', 'scriptlets', 'youtube', 'twitch', 'extended'];
 const lists = ['allowlist', 'blockedDomains'];
@@ -21,6 +21,19 @@ function render() {
   const { metadata, settings, extendedActive } = current;
   for (const key of toggles) document.getElementById(key).checked = settings[key];
   for (const key of lists) document.getElementById(key).value = settings[key].join('\n');
+  document.querySelector('#streaming-platforms').replaceChildren(...streamingPlatforms.map(platform => {
+    const label = document.createElement('label');
+    label.className = 'platform-row';
+    const name = document.createElement('span');
+    name.textContent = platform.name;
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.id = `platform-${platform.id}`;
+    input.setAttribute('role', 'switch');
+    input.checked = !(settings.disabledPlatforms || []).includes(platform.id);
+    label.append(name, input);
+    return label;
+  }));
   document.querySelector('#customCss').value = settings.customCss;
   document.querySelector('#coverage').textContent = !settings.enabled ? 'La protección está pausada' : extendedActive ? 'Cobertura ampliada activa' : 'Cobertura base activa';
   document.querySelector('#filter-date').textContent = `Actualización de listas: ${new Date(metadata.updatedAt).toLocaleString('es-ES')}`;
@@ -44,6 +57,7 @@ function readForm() {
   const settings = { ...current.settings };
   for (const key of toggles) settings[key] = document.getElementById(key).checked;
   for (const key of lists) settings[key] = document.getElementById(key).value.split('\n').map(line => line.trim()).filter(Boolean);
+  settings.disabledPlatforms = streamingPlatforms.filter(platform => !document.getElementById(`platform-${platform.id}`).checked).map(platform => platform.id);
   settings.customCss = document.querySelector('#customCss').value;
   for (const line of settings.customCss.split('\n').filter(line => line.trim())) {
     const index = line.indexOf('##');
@@ -75,41 +89,16 @@ document.querySelector('#refresh').addEventListener('click', async () => {
   }
 });
 
-document.querySelector('#export').addEventListener('click', async () => {
-  try {
-    const result = await request({ type: 'status' });
-    const url = URL.createObjectURL(new Blob([JSON.stringify({ format: 'adstop-settings', version: 1, settings: result.settings }, null, 2)], { type: 'application/json' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'adstop-ajustes.json';
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  } catch (error) {
-    feedback(error.message, true);
-  }
-});
-
-document.querySelector('#import').addEventListener('click', () => document.querySelector('#import-file').click());
-document.querySelector('#import-file').addEventListener('change', async event => {
-  const file = event.target.files[0];
-  if (!file) return;
-  try {
-    if (file.size > 200000) throw new Error('El archivo de ajustes es demasiado grande');
-    const imported = JSON.parse(await file.text());
-    if (imported.format !== 'adstop-settings' || imported.version !== 1 || !imported.settings) throw new Error('El archivo no es una copia de ajustes de AdStop');
-    current = await request({ type: 'save', settings: { ...defaults, ...imported.settings } });
-    render();
-    feedback('Ajustes importados. Recarga las webs abiertas para aplicarlos.');
-  } catch (error) {
-    feedback(error.message, true);
-  } finally {
-    event.target.value = '';
-  }
-});
+document.querySelector('#reload-extension').addEventListener('click', () => chrome.runtime.reload());
 
 try {
   current = await request({ type: 'status' });
   render();
+  if (!Array.isArray(current.settings.disabledPlatforms)) {
+    feedback('Hay una actualización pendiente. Recarga AdStop para utilizar estos ajustes.', true);
+    document.querySelector('#reload-extension').hidden = false;
+    save.disabled = true;
+  }
 } catch (error) {
   feedback(error.message, true);
   save.disabled = true;

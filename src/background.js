@@ -1,6 +1,7 @@
-import { defaults, domainMatches, settingsRules, siteEnabled, validateSettings } from './shared/settings.js';
+import { defaults, domainMatches, exceptionDomains, settingsRules, siteEnabled, validateSettings } from './shared/settings.js';
 import { selectCosmetic } from './shared/cosmetic.js';
 import { observeBlockedRequests, pageStats, refreshBadges, setDynamicBlockingRules } from './blocked.js';
+import { streamingPlatforms } from './shared/platforms.js';
 
 let settings;
 let metadata;
@@ -10,7 +11,7 @@ let mutations = Promise.resolve();
 const cssCache = new Map();
 
 async function registerScripts(value) {
-  const excludeMatches = value.allowlist.flatMap(domain => [`*://${domain}/*`, `*://*.${domain}/*`]);
+  const excludeMatches = exceptionDomains(value).flatMap(domain => [`*://${domain}/*`, `*://*.${domain}/*`]);
   const desired = [];
   for (const [id, enabled, matches] of [
     ['scriptlets', value.scriptlets, ['http://*/*', 'https://*/*']],
@@ -54,7 +55,7 @@ async function applySettings(value) {
   }
   await registerScripts(value);
   await chrome.action.setBadgeText({ text: value.enabled ? '' : 'OFF' });
-  await chrome.action.setBadgeBackgroundColor({ color: '#526078' });
+  await chrome.action.setBadgeBackgroundColor({ color: value.enabled ? '#df2537' : '#7a6a70' });
   await refreshBadges(value.enabled);
 }
 
@@ -123,7 +124,12 @@ async function handle(message, sender) {
   if (message.type === 'toggleSite') {
     const hostname = new URL(message.url).hostname;
     const excluded = settings.allowlist.some(domain => domainMatches(hostname, domain));
-    return save({ ...settings, allowlist: excluded ? settings.allowlist.filter(domain => !domainMatches(hostname, domain)) : [...settings.allowlist, hostname] });
+    const platform = streamingPlatforms.find(item => item.domains.some(domain => domainMatches(hostname, domain)) && settings.disabledPlatforms.includes(item.id));
+    return save({
+      ...settings,
+      disabledPlatforms: platform ? settings.disabledPlatforms.filter(id => id !== platform.id) : settings.disabledPlatforms,
+      allowlist: excluded ? settings.allowlist.filter(domain => !domainMatches(hostname, domain)) : platform ? settings.allowlist : [...settings.allowlist, hostname]
+    });
   }
   if (message.type === 'refresh') {
     await applySettings(settings);

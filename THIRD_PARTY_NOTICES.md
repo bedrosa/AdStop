@@ -20,6 +20,12 @@ El conversor @adguard/dnr-converter, el analizador @adguard/agtree, los scripts 
 
 Las versiones exactas se conservan en package-lock.json. Se eliminan comentarios de los archivos compilados y se conserva la atribución en este documento y el texto GPL en licenses/GPL-3.0.txt.
 
+## Netflix
+
+El filtro de `src/shared/netflix.js` adapta la lógica de `scriptlets/site-unique/netflix.js` de Pie, bajo GPL-3.0, revisión 69db9a63637a265b5cd5915f37d70c724d78c785. La adaptación modifica los descriptores antes de definir las propiedades y conserva el valor de retorno nativo de Object.defineProperty.
+
+https://github.com/piedotorg/pie-adblock-rules/blob/69db9a63637a265b5cd5915f37d70c724d78c785/scriptlets/site-unique/netflix.js
+
 ## Twitch
 
 El módulo se basa en vaft de pixeltris y colaboradores, proyecto TwitchAdSolutions, bajo licencia MIT. Se fija la revisión f8f86706daf90daa534b26bce5b2f01238667d5f.
@@ -32,4 +38,4 @@ El repositorio original fue archivado en marzo de 2026. Su inclusión permite re
 
 ## Herramientas de desarrollo
 
-esbuild se distribuye bajo MIT, fflate bajo MIT y Playwright bajo Apache-2.0. Estas herramientas no se cargan en las páginas del usuario. Sus licencias se incluyen en las respectivas dependencias de desarrollo.
+esbuild se distribuye bajo MIT, fflate bajo MIT, Playwright bajo Apache-2.0 y sharp bajo Apache-2.0. Estas herramientas no se cargan en las páginas del usuario. Sus licencias se incluyen en las respectivas dependencias de desarrollo.

@@ -3,14 +3,30 @@ import { siteEnabled } from '../shared/settings.js';
 let current;
 let tab;
 let blockSnapshot;
+let needsReload = false;
 const error = document.querySelector('#error');
 const power = document.querySelector('#power');
 const enabled = document.querySelector('#enabled');
 
 async function request(message) {
   const result = await chrome.runtime.sendMessage(message);
-  if (!result.ok) throw new Error(result.error);
+  if (!result.ok) {
+    if (message.type === 'pageStats' && result.error === 'Operacion no reconocida') {
+      requireReload();
+      throw new Error('Hay una actualización pendiente. Recarga AdStop para activar el contador.');
+    }
+    throw new Error(result.error);
+  }
   return result;
+}
+
+function requireReload() {
+  needsReload = true;
+  error.textContent = 'Hay una actualización pendiente. Recarga AdStop para activar el contador.';
+  document.querySelector('#reload-extension').hidden = false;
+  document.querySelector('#blocked-empty').textContent = 'El contador estará disponible al recargar AdStop';
+  power.disabled = true;
+  enabled.disabled = true;
 }
 
 function render() {
@@ -22,13 +38,13 @@ function render() {
   } catch {}
   const active = hostname && siteEnabled(settings, hostname);
   document.querySelector('#hostname').textContent = hostname || 'Página del navegador';
-  power.disabled = !hostname || !settings.enabled;
+  power.disabled = needsReload || !hostname || !settings.enabled;
   power.classList.toggle('off', !active);
   power.setAttribute('aria-pressed', String(Boolean(active)));
   document.querySelector('#site-status').textContent = !settings.enabled ? 'Protección pausada' : !hostname ? 'Listo para navegar' : active ? 'Protección activa' : 'Web permitida';
   document.querySelector('#site-help').textContent = !hostname ? 'Abre una web para controlar su protección.' : !settings.enabled ? 'Activa la protección general para continuar.' : active ? 'Pulsa para permitir anuncios en esta web.' : 'Pulsa para volver a bloquear en esta web.';
   enabled.checked = settings.enabled;
-  enabled.disabled = false;
+  enabled.disabled = needsReload;
   renderBlocks();
 }
 
@@ -74,18 +90,20 @@ async function mutate(message, reload) {
 power.addEventListener('click', () => mutate({ type: 'toggleSite', url: tab.url }, true));
 enabled.addEventListener('change', () => mutate({ type: 'save', settings: { ...current.settings, enabled: enabled.checked } }, /^https?:/.test(tab?.url || '')));
 document.querySelector('#options').addEventListener('click', () => chrome.runtime.openOptionsPage());
+document.querySelector('#reload-extension').addEventListener('click', () => chrome.runtime.reload());
 
 try {
   [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   current = await request({ type: 'status', tabId: tab?.id });
   render();
+  if (!current.page) requireReload();
 } catch (cause) {
   error.textContent = cause.message;
 }
 
 let refreshing = false;
 setInterval(async () => {
-  if (!current || refreshing) return;
+  if (!current || needsReload || refreshing) return;
   refreshing = true;
   try {
     current.page = (await request({ type: 'pageStats', tabId: tab?.id })).page;

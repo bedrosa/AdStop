@@ -6,6 +6,7 @@ import { defaults, normalizeDomain, settingsRules, validateSettings, siteEnabled
 import { matchesScope, selectCosmetic } from '../src/shared/cosmetic.js';
 import { cleanPlayerResponse, isPlayerUrl } from '../src/shared/youtube.js';
 import { parseLists, preprocess, splitRules } from '../scripts/filter-tools.mjs';
+import { netflix } from '../src/shared/netflix.js';
 
 test('normaliza dominios sin aceptar rutas ni protocolos ajenos a la web', () => {
   assert.equal(normalizeDomain(' https://WWW.Ejemplo.com/ '), 'www.ejemplo.com');
@@ -20,7 +21,37 @@ test('las excepciones incluyen subdominios sin permitir dominios con prefijos pa
   assert.equal(siteEnabled({ ...settings, enabled: false }, 'otra.com'), false);
 });
 
-test('valida importaciones y limita el contenido de los filtros CSS', () => {
+test('los controles de streaming permiten desactivar cada plataforma', () => {
+  const settings = validateSettings({ ...defaults, disabledPlatforms: ['netflix', 'disney', 'netflix'] });
+  assert.deepEqual(settings.disabledPlatforms, ['disney', 'netflix']);
+  assert.equal(siteEnabled(settings, 'www.netflix.com'), false);
+  assert.equal(siteEnabled(settings, 'www.disneyplus.com'), false);
+  assert.equal(siteEnabled(settings, 'www.primevideo.com'), true);
+  assert.ok(settingsRules(settings).some(rule => rule.action.type === 'allowAllRequests' && rule.condition.requestDomains.includes('netflix.com')));
+  assert.throws(() => validateSettings({ ...defaults, disabledPlatforms: ['desconocida'] }));
+  const previous = { ...defaults };
+  delete previous.disabledPlatforms;
+  assert.deepEqual(validateSettings(previous).disabledPlatforms, []);
+});
+
+test('Netflix conserva el contrato de los descriptores y las propiedades del contenido', () => {
+  const result = vm.runInNewContext(`
+    (${netflix.toString()})();
+    const object = {};
+    const returned = Object.defineProperty(object, 'adBreaks', { value: [1], configurable: true });
+    Object.defineProperty(object, 'currentAdBreak', { value: 'anuncio' });
+    Object.defineProperty(object, 'getAdBreaks', { value: () => ['anuncio'] });
+    Object.defineProperty(object, 'title', { value: 'Contenido' });
+    ({ same: returned === object, empty: object.adBreaks.length === 0, noCurrent: object.currentAdBreak === undefined, getter: object.getAdBreaks(), title: object.title });
+  `);
+  assert.equal(result.same, true);
+  assert.equal(result.empty, true);
+  assert.equal(result.noCurrent, true);
+  assert.equal(result.getter, undefined);
+  assert.equal(result.title, 'Contenido');
+});
+
+test('valida ajustes y limita el contenido de los filtros CSS', () => {
   assert.deepEqual(validateSettings({ ...defaults, allowlist: ['UNO.COM', 'uno.com'] }).allowlist, ['uno.com']);
   assert.throws(() => validateSettings({ ...defaults, enabled: 'true' }));
   assert.throws(() => validateSettings({ ...defaults, allowlist: ['dominio.com/ruta'] }));

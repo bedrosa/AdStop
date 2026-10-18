@@ -5,6 +5,7 @@ import { FilterConverter, Filter, DNR_CONVERTER_VERSION } from '@adguard/dnr-con
 import { scriptlets } from '@adguard/scriptlets';
 import { parseLists, splitRules } from './filter-tools.mjs';
 import { makeIcons } from './icons.mjs';
+import { netflix } from '../src/shared/netflix.js';
 
 const lock = JSON.parse(await readFile('filters/lock.json', 'utf8'));
 const entries = [['local', await readFile('filters/local.txt', 'utf8')]];
@@ -41,7 +42,7 @@ for (const rule of parsed.scripts) {
   }
   try {
     if (!functions.has(rule.name)) {
-      const fn = scriptlets.getScriptletFunction(rule.name);
+      const fn = rule.name === 'netflix' ? netflix : scriptlets.getScriptletFunction(rule.name);
       if (!fn) throw new Error('Scriptlet no disponible en la biblioteca');
       functions.set(rule.name, fn.toString());
     }

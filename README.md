@@ -22,11 +22,10 @@ No se modifica tu perfil del navegador ni se instala automáticamente la extensi
 - El interruptor general pausa o reanuda AdStop
 - El contador muestra solicitudes de anuncios y rastreadores bloqueadas en la página abierta, con un listado de dominios y sus respectivos bloqueos
 - El contador se actualiza en directo y se reinicia al recargar o navegar a otra página. Cada pestaña mantiene su registro independiente y el icono muestra su cifra
-- En Ajustes puedes activar filtros visuales, scripts de las listas, cobertura ampliada y los módulos de YouTube y Twitch
+- En Ajustes puedes activar filtros visuales, scripts de las listas, cobertura ampliada y los controles de plataformas de streaming
 - Webs permitidas desactiva la protección para ese dominio y sus subdominios
 - Dominios bloqueados impide cargar sus recursos. No bloquea abrir esos dominios como página principal
 - Los filtros personales de elementos utilizan CSS estándar, por ejemplo `ejemplo.com##.banner-publicidad`
-- Exportar e Importar permiten trasladar tus ajustes entre navegadores
 
 Los cambios de Ajustes se aplican al guardar. Recarga las pestañas abiertas para que desaparezcan los efectos de scripts y estilos ya aplicados.
 
@@ -52,13 +51,19 @@ El detalle de solicitudes utiliza `declarativeNetRequestFeedback`, disponible en
 
 Las copias originales están en `filters/upstream`, con sus cabeceras. `filters/lock.json` registra origen, fecha y SHA-256 de cada descarga. La compilación verifica esas huellas y falla si los archivos no coinciden. `reports/filters.json` detalla reglas no compatibles y errores de conversión. El formato de uBlock no es completamente equivalente a Manifest V3 y no todas sus funciones pueden trasladarse.
 
-## YouTube y Twitch
+## Plataformas de streaming
+
+Los ajustes incluyen controles para Netflix, Disney+, Prime Video, HBO Max y Max, Apple TV, Paramount+, Hulu, Peacock, SkyShowtime, Discovery+, Movistar Plus+, DAZN, Crunchyroll, Pluto TV, Rakuten TV, Tubi, ViX, Filmin, Fubo, Atresplayer, Mitele y RTVE Play, además de los módulos de YouTube y Twitch.
+
+Cada control adicional activa o desactiva la protección de red, los filtros visuales y los scripts en los dominios declarados en `src/shared/platforms.js`. Las reglas proceden de las listas incluidas. No equivale a certificar que se eliminan todos los anuncios de todos los planes o regiones. Prime Video incluye `primevideo.com`, y Apple TV incluye `tv.apple.com`.
+
+Netflix incorpora una adaptación del script de Pie para neutralizar propiedades publicitarias del reproductor. Conserva el contrato de Object.defineProperty y deja intactas las propiedades del contenido. Los filtros de Pie también incluyen reglas de reproducción para Prime Video, Max, Hulu, Pluto TV y Peacock que se aplican cuando sus scriptlets son compatibles.
 
 YouTube tiene un módulo local para limpiar datos publicitarios del reproductor en la respuesta inicial, fetch y XMLHttpRequest. También pulsa los botones de salto detectados y silencia o acelera los anuncios cortos que llegan a mostrarse. Los filtros y scriptlets de las listas complementan este módulo.
 
 Twitch integra vaft de TwitchAdSolutions, fijado a una revisión concreta y distribuido con su licencia MIT. Intenta obtener una variante del directo sin publicidad y evita reproducir los segmentos identificados como anuncios. Puede haber pausas, bajadas de calidad o anuncios que se escapen. Su repositorio original fue archivado en marzo de 2026, por lo que este módulo necesita seguimiento propio. No utiliza un servicio de proxy externo.
 
-Ninguna de estas integraciones garantiza bloquear todos los anuncios. Ambas plataformas cambian sus sistemas, experimentos y respuestas según cuenta, región y sesión. Las pruebas automáticas verifican solicitudes y respuestas controladas, no certifican el resultado en emisiones reales ni en todas las variantes de anuncios del servidor.
+Estas integraciones no garantizan bloquear todos los anuncios. Las plataformas cambian sus sistemas, experimentos y respuestas según cuenta, región y sesión. Los anuncios integrados en un mismo flujo de vídeo o protegidos por DRM pueden seguir apareciendo. Las pruebas automáticas verifican solicitudes y respuestas controladas, no certifican el resultado en emisiones reales ni en todas las variantes de anuncios del servidor.
 
 Para diagnosticar conflictos, prueba AdStop como único bloqueador. En Brave puedes desactivar Shields solo en la web que estés comprobando. No cambies varios bloqueadores de Twitch a la vez.
 

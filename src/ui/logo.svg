@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <path d="M38 4h52l34 34v52l-34 34H38L4 90V38Z" fill="#df2537"/>
+  <path d="M41 12h46l29 29v46l-29 29H41L12 87V41Z" fill="none" stroke="#fff" stroke-width="4"/>
+  <text x="64" y="80" text-anchor="middle" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="44" font-weight="700" letter-spacing="-2">ADS</text>
+</svg>
