@@ -1,3 +1,5 @@
+<img src="src/ui/logo.svg" alt="Icono de AdStop" width="80" height="80">
+
 # AdStop
 
 Extensión para bloquear anuncios y rastreadores, con filtros abiertos y ajustes guardados localmente. Preparada para Chrome y Brave, y para otros navegadores Chromium como Edge, Opera y Vivaldi. Se genera además un paquete experimental para Firefox.
