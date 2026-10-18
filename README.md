@@ -23,6 +23,7 @@ No se modifica tu perfil del navegador ni se instala automáticamente la extensi
 - El botón de luna o sol cambia entre modo claro y oscuro en el popup y los ajustes. La elección se guarda y se comparte entre ambas ventanas
 - El popup muestra el número de solicitudes de anuncios y rastreadores bloqueadas en la página abierta
 - El contador se actualiza en directo y se reinicia al recargar o navegar a otra página. Cada pestaña mantiene su registro independiente y el icono muestra su cifra
+- El icono de la barra es rojo cuando la protección está activa y gris cuando se pausa AdStop o se permite la publicidad en esa web
 - Total anuncios bloqueados suma los bloqueos de todas las pestañas y se conserva al cerrar el navegador, recargar la extensión o cambiar los ajustes. Empieza a contar desde que instalas esta versión
 - En Ajustes puedes activar filtros visuales, scripts de las listas, cobertura ampliada y los controles de plataformas de streaming
 - Webs permitidas desactiva la protección para ese dominio y sus subdominios

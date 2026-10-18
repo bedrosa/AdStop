@@ -67,6 +67,14 @@ try {
   const save = settings => ui.evaluate(settings => chrome.runtime.sendMessage({ type: 'save', settings }), settings);
   const initial = await status();
   const metadata = JSON.parse(await readFile('dist/chromium/data/metadata.json', 'utf8'));
+  await worker.evaluate(() => {
+    const original = chrome.action.setIcon.bind(chrome.action);
+    globalThis.adstopIcons = {};
+    chrome.action.setIcon = async details => {
+      await original(details);
+      globalThis.adstopIcons[details.tabId ?? 'default'] = details.path;
+    };
+  });
   await check('carga de la extensión y cuota ampliada', async () => {
     assert.equal(initial.ok, true);
     assert.equal(initial.enabledRules, metadata.networkRules);
@@ -142,6 +150,32 @@ try {
     const result = await save({ ...initial.settings, allowlist: ['dominio.com/ruta'] });
     assert.equal(result.ok, false);
     assert.deepEqual((await status()).settings.allowlist, []);
+  });
+  await check('el icono cambia a gris al pausar o permitir una web y vuelve a rojo al reactivar', async () => {
+    const waitForIcon = expected => worker.evaluate(async ({ tabId, expected }) => {
+      const deadline = Date.now() + 5000;
+      while (globalThis.adstopIcons[tabId]?.[32] !== expected) {
+        if (Date.now() > deadline) throw new Error(`Icono inesperado: ${JSON.stringify(globalThis.adstopIcons[tabId])}`);
+        await new Promise(resolve => setTimeout(resolve, 25));
+      }
+    }, { tabId, expected });
+    await save(initial.settings);
+    await waitForIcon('icons/32.png');
+    const allowed = await ui.evaluate(url => chrome.runtime.sendMessage({ type: 'toggleSite', url }), page.url());
+    assert.equal(allowed.ok, true, allowed.error);
+    await waitForIcon('icons/32-off.png');
+    await save({ ...initial.settings, allowlist: ['permitida.adstop.test'] });
+    await waitForIcon('icons/32.png');
+    await page.goto(`http://permitida.adstop.test:${port}/`);
+    await waitForIcon('icons/32-off.png');
+    await page.goto(`http://www.adstop.test:${port}/`);
+    await waitForIcon('icons/32.png');
+    await save({ ...initial.settings, enabled: false });
+    await waitForIcon('icons/32-off.png');
+    assert.equal(await worker.evaluate(() => globalThis.adstopIcons.default[32]), 'icons/32-off.png');
+    await save(initial.settings);
+    await waitForIcon('icons/32.png');
+    assert.deepEqual(await ui.evaluate(() => chrome.action.getBadgeBackgroundColor({})), [82, 96, 120, 255]);
   });
   await check('los scriptlets de las listas se ejecutan y respetan sus ámbitos', async () => {
     await page.goto(`http://tune.pk:${port}/`);
