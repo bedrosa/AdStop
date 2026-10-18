@@ -13,7 +13,6 @@
   --control-border:#e5c8ce;
   --control-off:#ddd3d6;
   --placeholder:#9c8890;
-  --scrollbar:#d9b7be;
   --save-bg:#fffffff5;
   --save-shadow:#4c102018;
   --power-border:#eeb0b8;
@@ -39,7 +38,6 @@
   --control-border:#67505a;
   --control-off:#5a5056;
   --placeholder:#ab969f;
-  --scrollbar:#71535f;
   --save-bg:#1e1e22f5;
   --save-shadow:#00000050;
   --power-border:#a74e5d;
@@ -339,7 +337,6 @@ input[role=switch]:checked:before {
   gap: 16px;
   padding: 12px 0;
   border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
 }
 .blocked-summary > strong {
   color: var(--accent);
@@ -354,59 +351,18 @@ input[role=switch]:checked:before {
   font-size: 12px;
   margin-top: 3px;
 }
-.blocked-details {
-  padding-top: 10px;
-}
 .lifetime-summary {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  margin-top: 8px;
-  padding-top: 10px;
+  padding: 14px 0 4px;
   border-top: 1px solid var(--line);
   font-size: 14px;
 }
 .lifetime-summary strong {
   font-size: 18px;
   font-variant-numeric: tabular-nums;
-}
-.blocked-list {
-  list-style: none;
-  margin: 8px 0 0;
-  padding: 0;
-  max-height: 96px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: var(--scrollbar) transparent;
-}
-.blocked-list li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 0;
-  font-size: 13px;
-  font-weight: 500;
-}
-.blocked-list li + li {
-  border-top: 1px solid var(--line);
-}
-.blocked-list li span {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  user-select: text;
-}
-.blocked-list li strong {
-  color: var(--accent);
-  font-size: 13px;
-  font-weight: 600;
-}
-.blocked-empty {
-  padding: 14px 0 4px;
-  font-size: 13px;
-  color: var(--muted);
 }
 .popup footer {
   padding: 12px 22px;
@@ -417,9 +373,6 @@ input[role=switch]:checked:before {
   width: 100%;
   display: flex;
   justify-content: space-between;
-}
-.popup .caption {
-  margin-top: 0;
 }
 .reload-extension {
   margin-top: 10px;
@@ -562,6 +515,8 @@ textarea::placeholder {
   gap: 16px;
   padding: 16px 0;
   border-bottom: 1px solid var(--line);
+  font-size: 14px;
+  font-weight: 600;
 }
 .options-footer {
   display: flex;

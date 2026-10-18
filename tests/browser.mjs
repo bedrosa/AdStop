@@ -204,11 +204,18 @@ try {
     assert.deepEqual((await status()).settings.allowlist, ['permitida.adstop.test']);
     assert.equal(await ui.locator('#export, #import, #import-file').count(), 0);
     assert.ok(await ui.locator('#streaming-platforms input').count() >= 20);
+    assert.equal(await ui.locator('#streaming-platforms > .platform-row').count(), 24);
+    assert.equal(await ui.locator('#streaming-platforms #youtube').count(), 1);
+    assert.equal(await ui.locator('#streaming-platforms #twitch').count(), 1);
+    await ui.locator('#youtube').uncheck();
+    await ui.locator('#twitch').uncheck();
     await ui.locator('#platform-netflix').uncheck();
     await ui.locator('#platform-disney').uncheck();
     await ui.locator('#save').click();
     await ui.waitForFunction(() => !document.querySelector('#save').disabled);
     assert.deepEqual((await status()).settings.disabledPlatforms, ['disney', 'netflix']);
+    assert.equal((await status()).settings.youtube, false);
+    assert.equal((await status()).settings.twitch, false);
     await save(initial.settings);
     await ui.reload();
     await ui.waitForFunction(() => document.querySelector('#version').textContent !== '');
@@ -235,7 +242,7 @@ try {
     assert.ok(registered.every(script => script.excludeMatches.includes('*://*.netflix.com/*')));
     assert.equal((await save(initial.settings)).ok, true);
   });
-  await check('el popup muestra bloqueos reales y actualiza su lista en directo', async () => {
+  await check('el popup actualiza los contadores sin mostrar dominios publicitarios', async () => {
     await page.goto(`http://www.adstop.test:${port}/`);
     await tryRequest();
     const popup = await context.newPage();
@@ -246,7 +253,8 @@ try {
     await popup.reload();
     await popup.waitForFunction(() => document.querySelector('#blocked-count').textContent === '1');
     assert.equal(await popup.locator('#total-count').textContent(), (await status()).totalBlocked.toLocaleString('es-ES'));
-    assert.equal(await popup.locator('#blocked-list li span').textContent(), 'ads.doubleclick.net');
+    assert.equal(await popup.locator('#blocked-list, #blocked-empty').count(), 0);
+    assert.equal((await popup.locator('body').textContent()).includes('ads.doubleclick.net'), false);
     assert.equal(await popup.locator('#network-count, #cosmetic-count').count(), 0);
     assert.equal(await popup.locator('#enabled').count(), 0);
     assert.equal(await popup.locator('#power').isDisabled(), false);
@@ -260,7 +268,9 @@ try {
     await page.evaluate(async ({ domains, port }) => {
       await Promise.all(domains.map(domain => fetch(`http://${domain}:${port}/resource.js`).catch(() => {})));
     }, { domains, port });
-    await popup.waitForFunction(() => document.querySelectorAll('#blocked-list li').length === 6 && document.querySelector('#blocked-count').textContent === '7');
+    await popup.waitForFunction(() => document.querySelector('#blocked-count').textContent === '7');
+    const popupText = await popup.locator('body').textContent();
+    assert.ok(domains.every(domain => !popupText.includes(domain)));
     const accumulated = (await status()).totalBlocked;
     await popup.waitForFunction(total => document.querySelector('#total-count').textContent === total, accumulated.toLocaleString('es-ES'));
     assert.equal(await popup.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
@@ -269,8 +279,6 @@ try {
     assert.ok(popupHeight <= 600, `El popup ocupa ${popupHeight} pixeles`);
     await page.reload();
     await popup.waitForFunction(() => document.querySelector('#blocked-count').textContent === '0');
-    assert.equal(await popup.locator('#blocked-empty').isVisible(), true);
-    assert.equal(await popup.locator('#blocked-list li').count(), 0);
     assert.equal((await status()).totalBlocked, accumulated);
     await save(initial.settings);
     await popup.close();

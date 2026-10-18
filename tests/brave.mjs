@@ -54,7 +54,7 @@ try {
   await ui.getByRole('button', { name: 'Activar modo claro' }).click();
   await popup.waitForFunction(() => document.documentElement.dataset.theme === 'light');
   await writeFile(path.join(resultsRoot, 'brave-checks.json'), JSON.stringify({ browser: await context.browser().version(), checks: ['Instalación', 'Listas completas', 'Bloqueo dinámico', 'Excepciones', 'Pausa general', 'Modo oscuro compartido y guardado'], livePlatformsTested: false }, null, 2));
-  console.log('Brave: instalación, bloqueo, contador, listado, excepciones, pausa general y modo oscuro comprobados');
+  console.log('Brave: instalación, bloqueo, contador, excepciones, pausa general y modo oscuro comprobados');
 } finally {
   if (context) await context.close();
   await new Promise(resolve => server.close(resolve));

@@ -21,7 +21,7 @@ No se modifica tu perfil del navegador ni se instala automáticamente la extensi
 - El botón central permite o bloquea anuncios en el dominio abierto, incluidos sus subdominios. Se recarga esa pestaña al cambiarlo
 - Desde Ajustes puedes pausar o reanudar AdStop en todas las webs
 - El botón de luna o sol cambia entre modo claro y oscuro en el popup y los ajustes. La elección se guarda y se comparte entre ambas ventanas
-- El contador muestra solicitudes de anuncios y rastreadores bloqueadas en la página abierta, con un listado de dominios y sus respectivos bloqueos
+- El popup muestra el número de solicitudes de anuncios y rastreadores bloqueadas en la página abierta
 - El contador se actualiza en directo y se reinicia al recargar o navegar a otra página. Cada pestaña mantiene su registro independiente y el icono muestra su cifra
 - Total anuncios bloqueados suma los bloqueos de todas las pestañas y se conserva al cerrar el navegador, recargar la extensión o cambiar los ajustes. Empieza a contar desde que instalas esta versión
 - En Ajustes puedes activar filtros visuales, scripts de las listas, cobertura ampliada y los controles de plataformas de streaming
@@ -47,7 +47,7 @@ Las reglas de red se convierten con `@adguard/dnr-converter`, utilizando el anal
 
 La compilación conserva todas las excepciones de red en un conjunto base de hasta 30.000 reglas y coloca el resto en un conjunto ampliado. AdStop comprueba la cuota antes de activar este último. Tener otras extensiones de filtrado puede reducir la cuota disponible.
 
-El popup muestra bloqueos de red observados en esa página. Solo suma acciones de bloqueo y sustituciones por recursos locales, sin contar excepciones, cambios de cabeceras ni múltiples coincidencias sobre la misma solicitud. No suma los elementos ocultados con CSS ni estima cuántos anuncios se retiraron dentro de una respuesta de vídeo. El listado agrupa hasta 200 dominios y reúne el resto bajo Otros dominios.
+El popup muestra bloqueos de red observados en esa página. Solo suma acciones de bloqueo y sustituciones por recursos locales, sin contar excepciones, cambios de cabeceras ni múltiples coincidencias sobre la misma solicitud. No suma los elementos ocultados con CSS ni estima cuántos anuncios se retiraron dentro de una respuesta de vídeo.
 
 El detalle de solicitudes utiliza `declarativeNetRequestFeedback`, disponible en Chrome y Brave cuando AdStop se carga como extensión descomprimida, que es la instalación descrita en esta guía. Publicarlo en una tienda requiere adaptar el registro de bloqueos a las capacidades que ese navegador permita en extensiones publicadas. [Referencia de Chrome](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest#event-onRuleMatchedDebug).
 
