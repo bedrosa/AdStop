@@ -159,8 +159,8 @@ async function start() {
 
 chrome.runtime.onInstalled.addListener(start);
 chrome.runtime.onStartup.addListener(start);
-chrome.tabs.onUpdated.addListener((tabId, change) => {
-  if (!change.url) return;
-  initialize().then(() => mutations.catch(() => {})).then(() => setIcon(settings, tabId, change.url)).catch(error => console.error('No se pudo actualizar el icono de AdStop', error));
+chrome.webNavigation.onCommitted.addListener(details => {
+  if (details.frameId !== 0 || details.tabId < 0) return;
+  initialize().then(() => mutations.catch(() => {})).then(() => setIcon(settings, details.tabId, details.url)).catch(error => console.error('No se pudo actualizar el icono de AdStop', error));
 });
 observeBlockedRequests(initialize);

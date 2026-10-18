@@ -48,7 +48,15 @@ try {
   assert.equal(await ui.evaluate(tabId => chrome.action.getBadgeText({ tabId }), tabId), '1');
   assert.equal((await request({ type: 'save', settings: { ...initial.settings, blockedDomains: ['127.0.0.1'], allowlist: ['127.0.0.1'] } })).ok, true);
   assert.equal(await worker.evaluate(tabId => globalThis.adstopIcons[tabId][32], tabId), 'icons/32-off.png');
+  await worker.evaluate(tabId => { delete globalThis.adstopIcons[tabId]; }, tabId);
   await page.reload();
+  await worker.evaluate(async tabId => {
+    const deadline = Date.now() + 5000;
+    while (globalThis.adstopIcons[tabId]?.[32] !== 'icons/32-off.png') {
+      if (Date.now() > deadline) throw new Error('El icono no se mantiene gris al recargar');
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+  }, tabId);
   assert.equal(await fetchResource(), true);
   assert.equal((await request({ type: 'pageStats', tabId })).page.total, 0);
   assert.equal((await request({ type: 'save', settings: { ...initial.settings, enabled: false } })).enabledRules, 0);

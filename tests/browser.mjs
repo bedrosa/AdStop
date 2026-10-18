@@ -164,6 +164,30 @@ try {
     const allowed = await ui.evaluate(url => chrome.runtime.sendMessage({ type: 'toggleSite', url }), page.url());
     assert.equal(allowed.ok, true, allowed.error);
     await waitForIcon('icons/32-off.png');
+    for (let reload = 0; reload < 3; reload++) {
+      await worker.evaluate(tabId => { delete globalThis.adstopIcons[tabId]; }, tabId);
+      await page.reload();
+      await waitForIcon('icons/32-off.png');
+    }
+    await save(initial.settings);
+    const popup = await context.newPage();
+    await popup.goto(`chrome-extension://${id}/popup.html`);
+    await page.bringToFront();
+    await popup.reload();
+    await popup.waitForFunction(() => document.querySelector('#power').getAttribute('aria-pressed') === 'true');
+    await popup.locator('#power').click();
+    await popup.waitForFunction(() => !document.querySelector('#power').disabled && document.querySelector('#power').classList.contains('off'));
+    await waitForIcon('icons/32-off.png');
+    await worker.evaluate(tabId => { delete globalThis.adstopIcons[tabId]; }, tabId);
+    await page.reload();
+    await waitForIcon('icons/32-off.png');
+    await page.bringToFront();
+    await popup.reload();
+    await popup.waitForFunction(() => !document.querySelector('#power').disabled && document.querySelector('#power').classList.contains('off'));
+    await popup.locator('#power').click();
+    await popup.waitForFunction(() => !document.querySelector('#power').disabled && !document.querySelector('#power').classList.contains('off'));
+    await waitForIcon('icons/32.png');
+    await popup.close();
     await save({ ...initial.settings, allowlist: ['permitida.adstop.test'] });
     await waitForIcon('icons/32.png');
     await page.goto(`http://permitida.adstop.test:${port}/`);
@@ -173,6 +197,9 @@ try {
     await save({ ...initial.settings, enabled: false });
     await waitForIcon('icons/32-off.png');
     assert.equal(await worker.evaluate(() => globalThis.adstopIcons.default[32]), 'icons/32-off.png');
+    await worker.evaluate(tabId => { delete globalThis.adstopIcons[tabId]; }, tabId);
+    await page.reload();
+    await waitForIcon('icons/32-off.png');
     await save(initial.settings);
     await waitForIcon('icons/32.png');
     assert.deepEqual(await ui.evaluate(() => chrome.action.getBadgeBackgroundColor({})), [82, 96, 120, 255]);
