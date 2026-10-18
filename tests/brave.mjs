@@ -27,6 +27,14 @@ try {
   const initial = await request({ type: 'status' });
   assert.equal(initial.ok, true, initial.error);
   assert.equal(initial.enabledRules, initial.metadata.networkRules);
+  await worker.evaluate(() => {
+    const original = chrome.action.setIcon.bind(chrome.action);
+    globalThis.adstopIcons = {};
+    chrome.action.setIcon = async details => {
+      await original(details);
+      globalThis.adstopIcons[details.tabId ?? 'default'] = details.path;
+    };
+  });
   const page = await context.newPage();
   await page.goto(`http://127.0.0.1:${port}/`);
   const tabId = await ui.evaluate(url => chrome.tabs.query({}).then(tabs => tabs.find(tab => tab.url === url).id), page.url());
@@ -39,14 +47,32 @@ try {
   assert.deepEqual(stats.page, { total: 1, domains: [{ domain: '127.0.0.1', count: 1 }], other: 0 });
   assert.equal(await ui.evaluate(tabId => chrome.action.getBadgeText({ tabId }), tabId), '1');
   assert.equal((await request({ type: 'save', settings: { ...initial.settings, blockedDomains: ['127.0.0.1'], allowlist: ['127.0.0.1'] } })).ok, true);
+  assert.equal(await worker.evaluate(tabId => globalThis.adstopIcons[tabId][32], tabId), 'icons/32-off.png');
+  await worker.evaluate(tabId => { delete globalThis.adstopIcons[tabId]; }, tabId);
   await page.reload();
+  await worker.evaluate(async tabId => {
+    const deadline = Date.now() + 5000;
+    while (globalThis.adstopIcons[tabId]?.[32] !== 'icons/32-off.png') {
+      if (Date.now() > deadline) throw new Error('El icono no se mantiene gris al recargar');
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+  }, tabId);
   assert.equal(await fetchResource(), true);
   assert.equal((await request({ type: 'pageStats', tabId })).page.total, 0);
   assert.equal((await request({ type: 'save', settings: { ...initial.settings, enabled: false } })).enabledRules, 0);
+  assert.equal(await worker.evaluate(() => globalThis.adstopIcons.default[32]), 'icons/32-off.png');
   await page.reload();
   assert.equal(await fetchResource(), true);
-  await writeFile(path.join(resultsRoot, 'brave-checks.json'), JSON.stringify({ browser: await context.browser().version(), checks: ['Instalación', 'Listas completas', 'Bloqueo dinámico', 'Excepciones', 'Pausa general'], livePlatformsTested: false }, null, 2));
-  console.log('Brave: instalación, bloqueo, contador, listado, excepciones y pausa general comprobados');
+  const popup = await context.newPage();
+  await popup.goto(`chrome-extension://${id}/popup.html`);
+  await popup.getByRole('button', { name: 'Activar modo oscuro' }).click();
+  await ui.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  await popup.reload();
+  await popup.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  await ui.getByRole('button', { name: 'Activar modo claro' }).click();
+  await popup.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+  await writeFile(path.join(resultsRoot, 'brave-checks.json'), JSON.stringify({ browser: await context.browser().version(), checks: ['Instalación', 'Listas completas', 'Bloqueo dinámico', 'Excepciones', 'Pausa general', 'Modo oscuro compartido y guardado', 'Icono gris al desactivar'], livePlatformsTested: false }, null, 2));
+  console.log('Brave: instalación, bloqueo, contador, excepciones, pausa general, modo oscuro e icono gris comprobados');
 } finally {
   if (context) await context.close();
   await new Promise(resolve => server.close(resolve));

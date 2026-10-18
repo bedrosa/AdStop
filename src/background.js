@@ -2,6 +2,7 @@ import { defaults, domainMatches, exceptionDomains, settingsRules, siteEnabled, 
 import { selectCosmetic } from './shared/cosmetic.js';
 import { observeBlockedRequests, pageStats, refreshBadges, setDynamicBlockingRules, totalBlocked } from './blocked.js';
 import { streamingPlatforms } from './shared/platforms.js';
+import { refreshIcons, setIcon } from './toolbar.js';
 
 let settings;
 let metadata;
@@ -57,6 +58,7 @@ async function applySettings(value) {
   await chrome.action.setBadgeText({ text: value.enabled ? '' : 'OFF' });
   await chrome.action.setBadgeBackgroundColor({ color: '#526078' });
   await refreshBadges(value.enabled);
+  await refreshIcons(value);
 }
 
 function initialize() {
@@ -157,4 +159,8 @@ async function start() {
 
 chrome.runtime.onInstalled.addListener(start);
 chrome.runtime.onStartup.addListener(start);
+chrome.webNavigation.onCommitted.addListener(details => {
+  if (details.frameId !== 0 || details.tabId < 0) return;
+  initialize().then(() => mutations.catch(() => {})).then(() => setIcon(settings, details.tabId, details.url)).catch(error => console.error('No se pudo actualizar el icono de AdStop', error));
+});
 observeBlockedRequests(initialize);

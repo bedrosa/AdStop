@@ -2,7 +2,6 @@ import { siteEnabled } from '../shared/settings.js';
 
 let current;
 let tab;
-let blockSnapshot;
 let needsReload = false;
 const error = document.querySelector('#error');
 const power = document.querySelector('#power');
@@ -23,7 +22,6 @@ function requireReload() {
   needsReload = true;
   error.textContent = 'Hay una actualización pendiente. Recarga AdStop para activar el contador.';
   document.querySelector('#reload-extension').hidden = false;
-  document.querySelector('#blocked-empty').textContent = 'El contador estará disponible al recargar AdStop';
   power.disabled = true;
 }
 
@@ -46,27 +44,7 @@ function render() {
 
 function renderBlocks() {
   document.querySelector('#total-count').textContent = (current.totalBlocked || 0).toLocaleString('es-ES');
-  const page = current.page || { total: 0, domains: [], other: 0 };
-  const snapshot = JSON.stringify(page);
-  if (snapshot === blockSnapshot) return;
-  blockSnapshot = snapshot;
-  document.querySelector('#blocked-count').textContent = page.total.toLocaleString('es-ES');
-  const entries = [...page.domains];
-  if (page.other) entries.push({ domain: 'Otros dominios', count: page.other });
-  const list = document.querySelector('#blocked-list');
-  const scrollTop = list.scrollTop;
-  list.replaceChildren(...entries.map(entry => {
-    const row = document.createElement('li');
-    const domain = document.createElement('span');
-    domain.textContent = entry.domain;
-    domain.title = entry.domain;
-    const count = document.createElement('strong');
-    count.textContent = entry.count.toLocaleString('es-ES');
-    row.append(domain, count);
-    return row;
-  }));
-  list.scrollTop = scrollTop;
-  document.querySelector('#blocked-empty').hidden = page.total > 0;
+  document.querySelector('#blocked-count').textContent = (current.page?.total || 0).toLocaleString('es-ES');
 }
 
 async function mutate(message, reload) {

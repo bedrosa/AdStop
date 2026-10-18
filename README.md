@@ -1,3 +1,5 @@
+<img src="src/ui/logo.svg" alt="Icono de AdStop" width="80" height="80">
+
 # AdStop
 
 Extensión para bloquear anuncios y rastreadores, con filtros abiertos y ajustes guardados localmente. Preparada para Chrome y Brave, y para otros navegadores Chromium como Edge, Opera y Vivaldi. Se genera además un paquete experimental para Firefox.
@@ -20,8 +22,10 @@ No se modifica tu perfil del navegador ni se instala automáticamente la extensi
 
 - El botón central permite o bloquea anuncios en el dominio abierto, incluidos sus subdominios. Se recarga esa pestaña al cambiarlo
 - Desde Ajustes puedes pausar o reanudar AdStop en todas las webs
-- El contador muestra solicitudes de anuncios y rastreadores bloqueadas en la página abierta, con un listado de dominios y sus respectivos bloqueos
+- El botón de luna o sol cambia entre modo claro y oscuro en el popup y los ajustes. La elección se guarda y se comparte entre ambas ventanas
+- El popup muestra el número de solicitudes de anuncios y rastreadores bloqueadas en la página abierta
 - El contador se actualiza en directo y se reinicia al recargar o navegar a otra página. Cada pestaña mantiene su registro independiente y el icono muestra su cifra
+- El icono de la barra es rojo cuando la protección está activa y gris cuando se pausa AdStop o se permite la publicidad en esa web
 - Total anuncios bloqueados suma los bloqueos de todas las pestañas y se conserva al cerrar el navegador, recargar la extensión o cambiar los ajustes. Empieza a contar desde que instalas esta versión
 - En Ajustes puedes activar filtros visuales, scripts de las listas, cobertura ampliada y los controles de plataformas de streaming
 - Webs permitidas desactiva la protección para ese dominio y sus subdominios
@@ -46,7 +50,7 @@ Las reglas de red se convierten con `@adguard/dnr-converter`, utilizando el anal
 
 La compilación conserva todas las excepciones de red en un conjunto base de hasta 30.000 reglas y coloca el resto en un conjunto ampliado. AdStop comprueba la cuota antes de activar este último. Tener otras extensiones de filtrado puede reducir la cuota disponible.
 
-El popup muestra bloqueos de red observados en esa página. Solo suma acciones de bloqueo y sustituciones por recursos locales, sin contar excepciones, cambios de cabeceras ni múltiples coincidencias sobre la misma solicitud. No suma los elementos ocultados con CSS ni estima cuántos anuncios se retiraron dentro de una respuesta de vídeo. El listado agrupa hasta 200 dominios y reúne el resto bajo Otros dominios.
+El popup muestra bloqueos de red observados en esa página. Solo suma acciones de bloqueo y sustituciones por recursos locales, sin contar excepciones, cambios de cabeceras ni múltiples coincidencias sobre la misma solicitud. No suma los elementos ocultados con CSS ni estima cuántos anuncios se retiraron dentro de una respuesta de vídeo.
 
 El detalle de solicitudes utiliza `declarativeNetRequestFeedback`, disponible en Chrome y Brave cuando AdStop se carga como extensión descomprimida, que es la instalación descrita en esta guía. Publicarlo en una tienda requiere adaptar el registro de bloqueos a las capacidades que ese navegador permita en extensiones publicadas. [Referencia de Chrome](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest#event-onRuleMatchedDebug).
 
@@ -124,7 +128,7 @@ Para actualizar la integración de Twitch revisa la revisión fijada en `scripts
 
 ## Privacidad y licencia
 
-AdStop no envía historial, estadísticas ni ajustes a un servidor propio. Los ajustes y el total acumulado se guardan en `chrome.storage.local`. Ese total conserva solo una cifra, sin historial de dominios. Los registros por página se guardan en `chrome.storage.session`, desaparecen al cerrar el navegador y se eliminan al cerrar su pestaña o iniciar otra navegación. Guardan dominios, contadores e identificadores temporales de solicitudes, sin rutas ni parámetros de las URL.
+AdStop no envía historial, estadísticas ni ajustes a un servidor propio. Los ajustes y el total acumulado se guardan en `chrome.storage.local`. Ese total conserva solo una cifra, sin historial de dominios. La elección del tema se guarda en el almacenamiento local de las páginas de la extensión. Los registros por página se guardan en `chrome.storage.session`, desaparecen al cerrar el navegador y se eliminan al cerrar su pestaña o iniciar otra navegación. Guardan dominios, contadores e identificadores temporales de solicitudes, sin rutas ni parámetros de las URL.
 
 El acceso a webs HTTP y HTTPS permite bloquear recursos, aplicar filtros y ejecutar las integraciones solicitadas. `webNavigation` permite reiniciar el contador cuando cambia la página y `declarativeNetRequestFeedback` permite registrar los bloqueos de AdStop. No pide acceso a cookies, contraseñas ni al historial guardado del navegador. El módulo de Twitch utiliza las solicitudes de reproducción de la propia plataforma para buscar variantes del directo, con las credenciales que esa sesión ya utiliza.
 

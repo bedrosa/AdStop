@@ -94,7 +94,7 @@ for (const browser of ['chromium', 'firefox']) {
   }
   await build({ stdin: { contents: scriptletSource, resolveDir: process.cwd(), sourcefile: 'scriptlet-rules.js' }, outfile: `${out}/content/scriptlets.js`, bundle: true, format: 'iife', target: 'chrome128', minifyWhitespace: true, legalComments: 'none', charset: 'utf8' });
   await writeFile(`${out}/content/twitch.js`, twitchSource);
-  for (const file of ['popup.html', 'options.html', 'style.css']) await cp(`src/ui/${file}`, `${out}/${file}`);
+  for (const file of ['popup.html', 'options.html', 'style.css', 'theme.js']) await cp(`src/ui/${file}`, `${out}/${file}`);
   await writeFile(`${out}/rules/core.json`, JSON.stringify(core));
   await writeFile(`${out}/rules/extended.json`, JSON.stringify(extended));
   await writeFile(`${out}/data/blocking-rules.json`, JSON.stringify(Object.fromEntries([['core', core], ['extended', extended]].map(([id, rules]) => [id, rules.filter(rule => rule.action.type === 'block' || rule.action.redirect?.extensionPath?.startsWith('/redirects/')).map(rule => rule.id)]))));

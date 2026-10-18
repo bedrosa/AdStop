@@ -67,6 +67,14 @@ try {
   const save = settings => ui.evaluate(settings => chrome.runtime.sendMessage({ type: 'save', settings }), settings);
   const initial = await status();
   const metadata = JSON.parse(await readFile('dist/chromium/data/metadata.json', 'utf8'));
+  await worker.evaluate(() => {
+    const original = chrome.action.setIcon.bind(chrome.action);
+    globalThis.adstopIcons = {};
+    chrome.action.setIcon = async details => {
+      await original(details);
+      globalThis.adstopIcons[details.tabId ?? 'default'] = details.path;
+    };
+  });
   await check('carga de la extensión y cuota ampliada', async () => {
     assert.equal(initial.ok, true);
     assert.equal(initial.enabledRules, metadata.networkRules);
@@ -143,6 +151,59 @@ try {
     assert.equal(result.ok, false);
     assert.deepEqual((await status()).settings.allowlist, []);
   });
+  await check('el icono cambia a gris al pausar o permitir una web y vuelve a rojo al reactivar', async () => {
+    const waitForIcon = expected => worker.evaluate(async ({ tabId, expected }) => {
+      const deadline = Date.now() + 5000;
+      while (globalThis.adstopIcons[tabId]?.[32] !== expected) {
+        if (Date.now() > deadline) throw new Error(`Icono inesperado: ${JSON.stringify(globalThis.adstopIcons[tabId])}`);
+        await new Promise(resolve => setTimeout(resolve, 25));
+      }
+    }, { tabId, expected });
+    await save(initial.settings);
+    await waitForIcon('icons/32.png');
+    const allowed = await ui.evaluate(url => chrome.runtime.sendMessage({ type: 'toggleSite', url }), page.url());
+    assert.equal(allowed.ok, true, allowed.error);
+    await waitForIcon('icons/32-off.png');
+    for (let reload = 0; reload < 3; reload++) {
+      await worker.evaluate(tabId => { delete globalThis.adstopIcons[tabId]; }, tabId);
+      await page.reload();
+      await waitForIcon('icons/32-off.png');
+    }
+    await save(initial.settings);
+    const popup = await context.newPage();
+    await popup.goto(`chrome-extension://${id}/popup.html`);
+    await page.bringToFront();
+    await popup.reload();
+    await popup.waitForFunction(() => document.querySelector('#power').getAttribute('aria-pressed') === 'true');
+    await popup.locator('#power').click();
+    await popup.waitForFunction(() => !document.querySelector('#power').disabled && document.querySelector('#power').classList.contains('off'));
+    await waitForIcon('icons/32-off.png');
+    await worker.evaluate(tabId => { delete globalThis.adstopIcons[tabId]; }, tabId);
+    await page.reload();
+    await waitForIcon('icons/32-off.png');
+    await page.bringToFront();
+    await popup.reload();
+    await popup.waitForFunction(() => !document.querySelector('#power').disabled && document.querySelector('#power').classList.contains('off'));
+    await popup.locator('#power').click();
+    await popup.waitForFunction(() => !document.querySelector('#power').disabled && !document.querySelector('#power').classList.contains('off'));
+    await waitForIcon('icons/32.png');
+    await popup.close();
+    await save({ ...initial.settings, allowlist: ['permitida.adstop.test'] });
+    await waitForIcon('icons/32.png');
+    await page.goto(`http://permitida.adstop.test:${port}/`);
+    await waitForIcon('icons/32-off.png');
+    await page.goto(`http://www.adstop.test:${port}/`);
+    await waitForIcon('icons/32.png');
+    await save({ ...initial.settings, enabled: false });
+    await waitForIcon('icons/32-off.png');
+    assert.equal(await worker.evaluate(() => globalThis.adstopIcons.default[32]), 'icons/32-off.png');
+    await worker.evaluate(tabId => { delete globalThis.adstopIcons[tabId]; }, tabId);
+    await page.reload();
+    await waitForIcon('icons/32-off.png');
+    await save(initial.settings);
+    await waitForIcon('icons/32.png');
+    assert.deepEqual(await ui.evaluate(() => chrome.action.getBadgeBackgroundColor({})), [82, 96, 120, 255]);
+  });
   await check('los scriptlets de las listas se ejecutan y respetan sus ámbitos', async () => {
     await page.goto(`http://tune.pk:${port}/`);
     assert.equal(await page.evaluate(() => window.ad_blocker), false);
@@ -204,11 +265,18 @@ try {
     assert.deepEqual((await status()).settings.allowlist, ['permitida.adstop.test']);
     assert.equal(await ui.locator('#export, #import, #import-file').count(), 0);
     assert.ok(await ui.locator('#streaming-platforms input').count() >= 20);
+    assert.equal(await ui.locator('#streaming-platforms > .platform-row').count(), 24);
+    assert.equal(await ui.locator('#streaming-platforms #youtube').count(), 1);
+    assert.equal(await ui.locator('#streaming-platforms #twitch').count(), 1);
+    await ui.locator('#youtube').uncheck();
+    await ui.locator('#twitch').uncheck();
     await ui.locator('#platform-netflix').uncheck();
     await ui.locator('#platform-disney').uncheck();
     await ui.locator('#save').click();
     await ui.waitForFunction(() => !document.querySelector('#save').disabled);
     assert.deepEqual((await status()).settings.disabledPlatforms, ['disney', 'netflix']);
+    assert.equal((await status()).settings.youtube, false);
+    assert.equal((await status()).settings.twitch, false);
     await save(initial.settings);
     await ui.reload();
     await ui.waitForFunction(() => document.querySelector('#version').textContent !== '');
@@ -235,7 +303,7 @@ try {
     assert.ok(registered.every(script => script.excludeMatches.includes('*://*.netflix.com/*')));
     assert.equal((await save(initial.settings)).ok, true);
   });
-  await check('el popup muestra bloqueos reales y actualiza su lista en directo', async () => {
+  await check('el popup actualiza los contadores sin mostrar dominios publicitarios', async () => {
     await page.goto(`http://www.adstop.test:${port}/`);
     await tryRequest();
     const popup = await context.newPage();
@@ -246,7 +314,8 @@ try {
     await popup.reload();
     await popup.waitForFunction(() => document.querySelector('#blocked-count').textContent === '1');
     assert.equal(await popup.locator('#total-count').textContent(), (await status()).totalBlocked.toLocaleString('es-ES'));
-    assert.equal(await popup.locator('#blocked-list li span').textContent(), 'ads.doubleclick.net');
+    assert.equal(await popup.locator('#blocked-list, #blocked-empty').count(), 0);
+    assert.equal((await popup.locator('body').textContent()).includes('ads.doubleclick.net'), false);
     assert.equal(await popup.locator('#network-count, #cosmetic-count').count(), 0);
     assert.equal(await popup.locator('#enabled').count(), 0);
     assert.equal(await popup.locator('#power').isDisabled(), false);
@@ -260,7 +329,9 @@ try {
     await page.evaluate(async ({ domains, port }) => {
       await Promise.all(domains.map(domain => fetch(`http://${domain}:${port}/resource.js`).catch(() => {})));
     }, { domains, port });
-    await popup.waitForFunction(() => document.querySelectorAll('#blocked-list li').length === 6 && document.querySelector('#blocked-count').textContent === '7');
+    await popup.waitForFunction(() => document.querySelector('#blocked-count').textContent === '7');
+    const popupText = await popup.locator('body').textContent();
+    assert.ok(domains.every(domain => !popupText.includes(domain)));
     const accumulated = (await status()).totalBlocked;
     await popup.waitForFunction(total => document.querySelector('#total-count').textContent === total, accumulated.toLocaleString('es-ES'));
     assert.equal(await popup.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
@@ -269,10 +340,46 @@ try {
     assert.ok(popupHeight <= 600, `El popup ocupa ${popupHeight} pixeles`);
     await page.reload();
     await popup.waitForFunction(() => document.querySelector('#blocked-count').textContent === '0');
-    assert.equal(await popup.locator('#blocked-empty').isVisible(), true);
-    assert.equal(await popup.locator('#blocked-list li').count(), 0);
     assert.equal((await status()).totalBlocked, accumulated);
     await save(initial.settings);
+    await popup.close();
+  });
+  await check('el modo oscuro se comparte entre popup y ajustes y se conserva al abrirlos', async () => {
+    const before = await status();
+    const popup = await context.newPage();
+    popup.on('pageerror', error => uiErrors.push(error.message));
+    await popup.setViewportSize({ width: 356, height: 600 });
+    await popup.goto(`chrome-extension://${id}/popup.html`);
+    await popup.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+    assert.equal(await popup.locator('.theme-moon').isVisible(), true);
+    assert.equal(await popup.locator('.theme-sun').isVisible(), false);
+    await ui.locator('#allowlist').fill('sin-guardar.adstop.test');
+    await popup.getByRole('button', { name: 'Activar modo oscuro' }).click();
+    await ui.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+    assert.equal(await popup.locator('.theme-sun').isVisible(), true);
+    assert.equal(await popup.locator('.theme-moon').isVisible(), false);
+    assert.equal(await popup.locator('#theme-toggle').getAttribute('aria-pressed'), 'true');
+    assert.equal(await popup.locator('body').evaluate(body => getComputedStyle(body).backgroundColor), 'rgb(20, 20, 22)');
+    assert.equal(await ui.locator('#allowlist').inputValue(), 'sin-guardar.adstop.test');
+    await popup.reload();
+    await popup.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+    await popup.locator('#site-status').filter({ hasText: /Listo|Protección/ }).waitFor();
+    await popup.screenshot({ path: path.join(resultsRoot, 'popup-dark.png'), fullPage: true });
+    await ui.setViewportSize({ width: 1200, height: 900 });
+    await ui.screenshot({ path: path.join(resultsRoot, 'options-dark.png'), fullPage: true });
+    await ui.setViewportSize({ width: 390, height: 844 });
+    assert.equal(await ui.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    await ui.screenshot({ path: path.join(resultsRoot, 'options-dark-mobile.png'), fullPage: true });
+    await ui.getByRole('button', { name: 'Activar modo claro' }).click();
+    await popup.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+    assert.equal(await popup.locator('.theme-moon').isVisible(), true);
+    await ui.locator('#theme-toggle').focus();
+    await ui.keyboard.press('Space');
+    await popup.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+    const after = await status();
+    assert.deepEqual(after.settings, before.settings);
+    assert.equal(after.totalBlocked, before.totalBlocked);
+    assert.deepEqual(uiErrors, []);
     await popup.close();
   });
   await check('una actualización pendiente muestra cómo recargar AdStop', async () => {
@@ -305,6 +412,8 @@ try {
     assert.equal(result.ok, true, result.error);
     assert.equal(result.totalBlocked, accumulated);
     assert.deepEqual(result.page, { total: 0, domains: [], other: 0 });
+    await restored.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+    assert.equal(await restored.getByRole('button', { name: 'Activar modo claro' }).isVisible(), true);
   });
   await writeFile(path.join(resultsRoot, 'browser-checks.json'), JSON.stringify({ browser: await context.browser().version(), checks, livePlatformsTested: false }, null, 2));
   console.log(`${checks.length} comprobaciones de navegador superadas`);

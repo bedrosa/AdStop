@@ -19,21 +19,22 @@ function feedback(text, error = false) {
 
 function render() {
   const { metadata, settings, extendedActive } = current;
-  for (const key of toggles) document.getElementById(key).checked = settings[key];
   for (const key of lists) document.getElementById(key).value = settings[key].join('\n');
-  document.querySelector('#streaming-platforms').replaceChildren(...streamingPlatforms.map(platform => {
+  document.querySelector('#streaming-platforms').replaceChildren(...[{ id: 'youtube', name: 'YouTube' }, { id: 'twitch', name: 'Twitch' }, ...streamingPlatforms].map(platform => {
     const label = document.createElement('label');
     label.className = 'platform-row';
     const name = document.createElement('span');
     name.textContent = platform.name;
     const input = document.createElement('input');
     input.type = 'checkbox';
-    input.id = `platform-${platform.id}`;
+    const videoModule = platform.id === 'youtube' || platform.id === 'twitch';
+    input.id = videoModule ? platform.id : `platform-${platform.id}`;
     input.setAttribute('role', 'switch');
-    input.checked = !(settings.disabledPlatforms || []).includes(platform.id);
+    input.checked = videoModule ? settings[platform.id] : !(settings.disabledPlatforms || []).includes(platform.id);
     label.append(name, input);
     return label;
   }));
+  for (const key of toggles) document.getElementById(key).checked = settings[key];
   document.querySelector('#customCss').value = settings.customCss;
   document.querySelector('#coverage').textContent = !settings.enabled ? 'La protección está pausada' : extendedActive ? 'Cobertura ampliada activa' : 'Cobertura base activa';
   document.querySelector('#filter-date').textContent = `Actualización de listas: ${new Date(metadata.updatedAt).toLocaleString('es-ES')}`;
