@@ -275,6 +275,44 @@ try {
     await save(initial.settings);
     await popup.close();
   });
+  await check('el modo oscuro se comparte entre popup y ajustes y se conserva al abrirlos', async () => {
+    const before = await status();
+    const popup = await context.newPage();
+    popup.on('pageerror', error => uiErrors.push(error.message));
+    await popup.setViewportSize({ width: 356, height: 600 });
+    await popup.goto(`chrome-extension://${id}/popup.html`);
+    await popup.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+    assert.equal(await popup.locator('.theme-moon').isVisible(), true);
+    assert.equal(await popup.locator('.theme-sun').isVisible(), false);
+    await ui.locator('#allowlist').fill('sin-guardar.adstop.test');
+    await popup.getByRole('button', { name: 'Activar modo oscuro' }).click();
+    await ui.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+    assert.equal(await popup.locator('.theme-sun').isVisible(), true);
+    assert.equal(await popup.locator('.theme-moon').isVisible(), false);
+    assert.equal(await popup.locator('#theme-toggle').getAttribute('aria-pressed'), 'true');
+    assert.equal(await popup.locator('body').evaluate(body => getComputedStyle(body).backgroundColor), 'rgb(20, 20, 22)');
+    assert.equal(await ui.locator('#allowlist').inputValue(), 'sin-guardar.adstop.test');
+    await popup.reload();
+    await popup.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+    await popup.locator('#site-status').filter({ hasText: /Listo|Protección/ }).waitFor();
+    await popup.screenshot({ path: path.join(resultsRoot, 'popup-dark.png'), fullPage: true });
+    await ui.setViewportSize({ width: 1200, height: 900 });
+    await ui.screenshot({ path: path.join(resultsRoot, 'options-dark.png'), fullPage: true });
+    await ui.setViewportSize({ width: 390, height: 844 });
+    assert.equal(await ui.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    await ui.screenshot({ path: path.join(resultsRoot, 'options-dark-mobile.png'), fullPage: true });
+    await ui.getByRole('button', { name: 'Activar modo claro' }).click();
+    await popup.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+    assert.equal(await popup.locator('.theme-moon').isVisible(), true);
+    await ui.locator('#theme-toggle').focus();
+    await ui.keyboard.press('Space');
+    await popup.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+    const after = await status();
+    assert.deepEqual(after.settings, before.settings);
+    assert.equal(after.totalBlocked, before.totalBlocked);
+    assert.deepEqual(uiErrors, []);
+    await popup.close();
+  });
   await check('una actualización pendiente muestra cómo recargar AdStop', async () => {
     const outdated = await context.newPage();
     await outdated.addInitScript(() => {
@@ -305,6 +343,8 @@ try {
     assert.equal(result.ok, true, result.error);
     assert.equal(result.totalBlocked, accumulated);
     assert.deepEqual(result.page, { total: 0, domains: [], other: 0 });
+    await restored.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+    assert.equal(await restored.getByRole('button', { name: 'Activar modo claro' }).isVisible(), true);
   });
   await writeFile(path.join(resultsRoot, 'browser-checks.json'), JSON.stringify({ browser: await context.browser().version(), checks, livePlatformsTested: false }, null, 2));
   console.log(`${checks.length} comprobaciones de navegador superadas`);

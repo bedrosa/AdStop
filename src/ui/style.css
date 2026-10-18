@@ -7,12 +7,42 @@
   --muted:#67545c;
   --accent:#df2537;
   --danger:#b91c2c;
+  --surface:#fffafb;
+  --hover:#fff0f3;
+  --footer:#fff6f7;
+  --control-border:#e5c8ce;
+  --control-off:#ddd3d6;
+  --placeholder:#9c8890;
+  --scrollbar:#d9b7be;
+  --save-bg:#fffffff5;
+  --save-shadow:#4c102018;
+  --power-border:#eeb0b8;
   font-family:
     Inter,
     "Segoe UI",
     system-ui,
     sans-serif;
   font-size: 14px;
+}
+:root[data-theme=dark] {
+  color-scheme: dark;
+  --bg:#141416;
+  --panel:#1e1e22;
+  --line:#393238;
+  --text:#f5eff1;
+  --muted:#c4b6bd;
+  --accent:#ff6576;
+  --danger:#ff8995;
+  --surface:#18181c;
+  --hover:#35232a;
+  --footer:#1c181c;
+  --control-border:#67505a;
+  --control-off:#5a5056;
+  --placeholder:#ab969f;
+  --scrollbar:#71535f;
+  --save-bg:#1e1e22f5;
+  --save-shadow:#00000050;
+  --power-border:#a74e5d;
 }
 * {
   box-sizing: border-box;
@@ -68,6 +98,37 @@ a:hover {
 }
 .brand-dot {
   color: var(--accent);
+}
+.theme-toggle {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  padding: 7px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text);
+}
+.theme-toggle:hover {
+  background: var(--hover);
+}
+.theme-toggle svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.theme-toggle .theme-sun,
+:root[data-theme=dark] .theme-moon {
+  display: none;
+}
+:root[data-theme=dark] .theme-sun {
+  display: block;
 }
 .local-label {
   font-size: 10px;
@@ -139,7 +200,7 @@ input[role=switch] {
   flex: 0 0 38px;
   width: 38px;
   height: 22px;
-  background: #ddd3d6;
+  background: var(--control-off);
   border-radius: 20px;
   position: relative;
   cursor: pointer;
@@ -158,7 +219,7 @@ input[role=switch]:before {
   transition: transform .15s;
 }
 input[role=switch]:checked {
-  background: var(--accent);
+  background: #df2537;
 }
 input[role=switch]:checked:before {
   transform: translateX(16px);
@@ -180,20 +241,20 @@ input[role=switch]:checked:before {
   font-size: 13px;
 }
 .primary {
-  border: 1px solid var(--accent);
-  background: var(--accent);
+  border: 1px solid #df2537;
+  background: #df2537;
   color: #ffffff;
 }
 .primary:hover {
   background: #c51c2e;
 }
 .secondary {
-  border: 1px solid #e5c8ce;
+  border: 1px solid var(--control-border);
   background: transparent;
   color: var(--text);
 }
 .secondary:hover {
-  background: #fff0f3;
+  background: var(--hover);
 }
 .text-button {
   background: none;
@@ -231,7 +292,7 @@ input[role=switch]:checked:before {
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  border: 1px solid #eeb0b8;
+  border: 1px solid var(--power-border);
   background:
     radial-gradient(
       circle,
@@ -256,9 +317,9 @@ input[role=switch]:checked:before {
   stroke-linecap: round;
 }
 .power.off {
-  border-color: #ded3d7;
+  border-color: var(--line);
   color: var(--muted);
-  background: #f7f3f4;
+  background: var(--surface);
   box-shadow: none;
 }
 .protection h1 {
@@ -317,7 +378,7 @@ input[role=switch]:checked:before {
   max-height: 96px;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: #d9b7be transparent;
+  scrollbar-color: var(--scrollbar) transparent;
 }
 .blocked-list li {
   display: flex;
@@ -349,7 +410,7 @@ input[role=switch]:checked:before {
 }
 .popup footer {
   padding: 12px 22px;
-  background: #fff6f7;
+  background: var(--footer);
   border-top: 1px solid var(--line);
 }
 .popup footer button {
@@ -422,9 +483,9 @@ textarea {
   display: block;
   resize: vertical;
   margin-top: 14px;
-  background: #fffafb;
-  color: #30252a;
-  border: 1px solid #e6d4d9;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--control-border);
   border-radius: 9px;
   padding: 14px;
   line-height: 1.6;
@@ -436,7 +497,7 @@ textarea {
   min-height: 100px;
 }
 textarea::placeholder {
-  color: #9c8890;
+  color: var(--placeholder);
 }
 .css-editor {
   display: block;
@@ -449,13 +510,13 @@ textarea::placeholder {
   justify-content: space-between;
   gap: 20px;
   align-items: center;
-  background: #fffffff5;
-  border: 1px solid #e5c3cc;
+  background: var(--save-bg);
+  border: 1px solid var(--control-border);
   border-radius: 12px;
   padding: 16px 20px;
   margin: 22px 0 36px;
   z-index: 2;
-  box-shadow: 0 10px 30px #4c102018;
+  box-shadow: 0 10px 30px var(--save-shadow);
 }
 .save-bar p {
   font-size: 12px;

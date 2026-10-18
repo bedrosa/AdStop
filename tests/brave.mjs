@@ -45,8 +45,16 @@ try {
   assert.equal((await request({ type: 'save', settings: { ...initial.settings, enabled: false } })).enabledRules, 0);
   await page.reload();
   assert.equal(await fetchResource(), true);
-  await writeFile(path.join(resultsRoot, 'brave-checks.json'), JSON.stringify({ browser: await context.browser().version(), checks: ['Instalación', 'Listas completas', 'Bloqueo dinámico', 'Excepciones', 'Pausa general'], livePlatformsTested: false }, null, 2));
-  console.log('Brave: instalación, bloqueo, contador, listado, excepciones y pausa general comprobados');
+  const popup = await context.newPage();
+  await popup.goto(`chrome-extension://${id}/popup.html`);
+  await popup.getByRole('button', { name: 'Activar modo oscuro' }).click();
+  await ui.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  await popup.reload();
+  await popup.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  await ui.getByRole('button', { name: 'Activar modo claro' }).click();
+  await popup.waitForFunction(() => document.documentElement.dataset.theme === 'light');
+  await writeFile(path.join(resultsRoot, 'brave-checks.json'), JSON.stringify({ browser: await context.browser().version(), checks: ['Instalación', 'Listas completas', 'Bloqueo dinámico', 'Excepciones', 'Pausa general', 'Modo oscuro compartido y guardado'], livePlatformsTested: false }, null, 2));
+  console.log('Brave: instalación, bloqueo, contador, listado, excepciones, pausa general y modo oscuro comprobados');
 } finally {
   if (context) await context.close();
   await new Promise(resolve => server.close(resolve));
