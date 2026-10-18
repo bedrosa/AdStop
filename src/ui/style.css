@@ -296,6 +296,20 @@ input[role=switch]:checked:before {
 .blocked-details {
   padding-top: 10px;
 }
+.lifetime-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+.lifetime-summary strong {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
 .blocked-list {
   list-style: none;
   margin: 8px 0 0;
@@ -333,13 +347,8 @@ input[role=switch]:checked:before {
   font-size: 13px;
   color: var(--muted);
 }
-.popup .switch-row {
-  font-size: 14px;
-  border: 0;
-  padding: 12px 0 6px;
-}
 .popup footer {
-  padding: 16px 22px;
+  padding: 12px 22px;
   background: #fff6f7;
   border-top: 1px solid var(--line);
 }
@@ -349,7 +358,7 @@ input[role=switch]:checked:before {
   justify-content: space-between;
 }
 .popup .caption {
-  margin-top: 8px;
+  margin-top: 0;
 }
 .reload-extension {
   margin-top: 10px;

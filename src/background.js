@@ -1,6 +1,6 @@
 import { defaults, domainMatches, exceptionDomains, settingsRules, siteEnabled, validateSettings } from './shared/settings.js';
 import { selectCosmetic } from './shared/cosmetic.js';
-import { observeBlockedRequests, pageStats, refreshBadges, setDynamicBlockingRules } from './blocked.js';
+import { observeBlockedRequests, pageStats, refreshBadges, setDynamicBlockingRules, totalBlocked } from './blocked.js';
 import { streamingPlatforms } from './shared/platforms.js';
 
 let settings;
@@ -49,7 +49,7 @@ async function applySettings(value) {
           await chrome.storage.local.set({ ruleWarning: `No se pudo activar la cobertura ampliada: ${error.message}` });
         }
       } else {
-        await chrome.storage.local.set({ ruleWarning: 'El navegador no tiene cuota para las reglas ampliadas. Las reglas base siguen activas' });
+        await chrome.storage.local.set({ ruleWarning: 'El navegador ha alcanzado su límite de filtros. La protección básica sigue activa' });
       }
     }
   }
@@ -77,7 +77,7 @@ function initialize() {
 
 async function status() {
   const enabled = await chrome.declarativeNetRequest.getEnabledRulesets();
-  return { settings, metadata, enabledRules: (enabled.includes('core') ? metadata.coreRules : 0) + (enabled.includes('extended') ? metadata.extendedRules : 0), extendedActive: enabled.includes('extended') };
+  return { settings, metadata, totalBlocked: await totalBlocked(), enabledRules: (enabled.includes('core') ? metadata.coreRules : 0) + (enabled.includes('extended') ? metadata.extendedRules : 0), extendedActive: enabled.includes('extended') };
 }
 
 async function save(value) {
@@ -119,7 +119,7 @@ async function handle(message, sender) {
   }
   if (!sender.url?.startsWith(chrome.runtime.getURL(''))) throw new Error('Esta operacion solo esta disponible en AdStop');
   if (message.type === 'status') return { ...await status(), page: await pageStats(message.tabId) };
-  if (message.type === 'pageStats') return { page: await pageStats(message.tabId) };
+  if (message.type === 'pageStats') return { page: await pageStats(message.tabId), totalBlocked: await totalBlocked() };
   if (message.type === 'save') return save(message.settings);
   if (message.type === 'toggleSite') {
     const hostname = new URL(message.url).hostname;

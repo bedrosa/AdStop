@@ -16,7 +16,7 @@
         <label class="switch-row"><span><b>Activar AdStop</b><small>Bloqueo de anuncios y rastreadores en las webs que visitas</small></span><input type="checkbox" id="enabled" role="switch"></label>
         <label class="switch-row"><span><b>Ocultar espacios publicitarios</b><small>Aplica filtros visuales para retirar banners y contenedores</small></span><input type="checkbox" id="cosmetic" role="switch"></label>
         <label class="switch-row"><span><b>Scripts de filtrado</b><small>Reglas de las listas que actúan sobre los scripts de cada web</small></span><input type="checkbox" id="scriptlets" role="switch"></label>
-        <label class="switch-row"><span><b>Cobertura de red ampliada</b><small>Añade el resto de reglas cuando el navegador dispone de cuota</small></span><input type="checkbox" id="extended" role="switch"></label>
+        <label class="switch-row"><span><b>Filtros adicionales</b><small>Activa más filtros si el navegador tiene espacio disponible</small></span><input type="checkbox" id="extended" role="switch"></label>
         <p class="caption" id="coverage"></p>
       </section>
       <section class="panel settings-panel"><h2>Plataformas de streaming</h2>
@@ -31,7 +31,7 @@
       </section>
       <div class="save-bar"><p id="message" role="status" aria-live="polite">Los cambios se aplican al guardar. Después, recarga las webs abiertas.</p><button class="secondary" type="button" id="reload-extension" hidden>Recargar AdStop</button><button class="primary" type="submit" id="save">Guardar cambios</button></div>
     </form>
-    <section class="panel settings-panel"><h2>Listas de filtros</h2><p class="muted" id="filter-date"></p><div id="sources" class="sources"></div><p class="hint">Las listas se incluyen en la extensión y se renuevan al actualizarla. No se descarga código durante la navegación.</p><button id="refresh" class="secondary">Revisar cuota del navegador</button></section>
+    <section class="panel settings-panel"><h2>Listas de filtros</h2><p class="muted" id="filter-date"></p><div id="sources" class="sources"></div><p class="hint">Las listas se incluyen en la extensión y se renuevan al actualizarla. No se descarga código durante la navegación.</p><button id="refresh" class="secondary">Comprobar protección</button></section>
     <footer class="options-footer"><span>AdStop <span id="version"></span></span><span>Sin telemetría. Ajustes guardados en este navegador.</span><a href="licenses/THIRD_PARTY_NOTICES.md" target="_blank" rel="noopener">Licencias</a></footer>
   </main>
 </body>

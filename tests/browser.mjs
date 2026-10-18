@@ -40,11 +40,12 @@ async function check(name, fn) {
 
 try {
   const extensionPath = path.resolve('dist/chromium');
-  context = await chromium.launchPersistentContext(profile, {
+  const launchOptions = {
     channel: 'chromium', headless: true,
     args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`, '--no-proxy-server', '--host-resolver-rules=MAP *.adstop.test 127.0.0.1, MAP ads.doubleclick.net 127.0.0.1, MAP www.youtube.com 127.0.0.1, MAP www.twitch.tv 127.0.0.1, MAP www.netflix.com 127.0.0.1, MAP tune.pk 127.0.0.1'],
     viewport: { width: 1200, height: 900 }
-  });
+  };
+  context = await chromium.launchPersistentContext(profile, launchOptions);
   let worker;
   try {
     worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker', { timeout: 15000 });
@@ -244,10 +245,11 @@ try {
     await page.bringToFront();
     await popup.reload();
     await popup.waitForFunction(() => document.querySelector('#blocked-count').textContent === '1');
+    assert.equal(await popup.locator('#total-count').textContent(), (await status()).totalBlocked.toLocaleString('es-ES'));
     assert.equal(await popup.locator('#blocked-list li span').textContent(), 'ads.doubleclick.net');
     assert.equal(await popup.locator('#network-count, #cosmetic-count').count(), 0);
-    assert.equal(await popup.locator('#enabled').isChecked(), true);
-    assert.equal(await popup.locator('#enabled').isDisabled(), false);
+    assert.equal(await popup.locator('#enabled').count(), 0);
+    assert.equal(await popup.locator('#power').isDisabled(), false);
     assert.deepEqual(uiErrors, []);
     await tryRequest();
     await popup.waitForFunction(() => document.querySelector('#blocked-count').textContent === '2');
@@ -259,6 +261,8 @@ try {
       await Promise.all(domains.map(domain => fetch(`http://${domain}:${port}/resource.js`).catch(() => {})));
     }, { domains, port });
     await popup.waitForFunction(() => document.querySelectorAll('#blocked-list li').length === 6 && document.querySelector('#blocked-count').textContent === '7');
+    const accumulated = (await status()).totalBlocked;
+    await popup.waitForFunction(total => document.querySelector('#total-count').textContent === total, accumulated.toLocaleString('es-ES'));
     assert.equal(await popup.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     await popup.screenshot({ path: path.join(resultsRoot, 'popup.png'), fullPage: true, animations: 'disabled' });
     const popupHeight = await popup.locator('body').evaluate(body => body.scrollHeight);
@@ -267,6 +271,7 @@ try {
     await popup.waitForFunction(() => document.querySelector('#blocked-count').textContent === '0');
     assert.equal(await popup.locator('#blocked-empty').isVisible(), true);
     assert.equal(await popup.locator('#blocked-list li').count(), 0);
+    assert.equal((await status()).totalBlocked, accumulated);
     await save(initial.settings);
     await popup.close();
   });
@@ -288,6 +293,18 @@ try {
     await outdated.locator('#reload-extension').click();
     assert.equal(await outdated.evaluate(() => window.adstopReloadRequested), true);
     await outdated.close();
+  });
+  await check('el total acumulado se conserva al cerrar y volver a abrir el navegador', async () => {
+    const accumulated = (await status()).totalBlocked;
+    assert.ok(accumulated > 0);
+    await context.close();
+    context = await chromium.launchPersistentContext(profile, launchOptions);
+    const restored = await context.newPage();
+    await restored.goto(`chrome-extension://${id}/options.html`);
+    const result = await restored.evaluate(() => chrome.runtime.sendMessage({ type: 'status' }));
+    assert.equal(result.ok, true, result.error);
+    assert.equal(result.totalBlocked, accumulated);
+    assert.deepEqual(result.page, { total: 0, domains: [], other: 0 });
   });
   await writeFile(path.join(resultsRoot, 'browser-checks.json'), JSON.stringify({ browser: await context.browser().version(), checks, livePlatformsTested: false }, null, 2));
   console.log(`${checks.length} comprobaciones de navegador superadas`);

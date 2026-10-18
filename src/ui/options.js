@@ -82,8 +82,9 @@ document.querySelector('#settings-form').addEventListener('submit', async event 
 
 document.querySelector('#refresh').addEventListener('click', async () => {
   try {
-    await request({ type: 'refresh' });
-    feedback('Cuota revisada. Recarga esta página para ver las cifras actualizadas.');
+    current = await request({ type: 'refresh' });
+    render();
+    feedback(!current.settings.enabled ? 'La protección está pausada.' : current.extendedActive ? 'Protección activa con todos los filtros disponibles.' : 'Protección activa con los filtros básicos. El navegador no permite activar más filtros ahora.');
   } catch (error) {
     feedback(error.message, true);
   }

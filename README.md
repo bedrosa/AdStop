@@ -19,9 +19,10 @@ No se modifica tu perfil del navegador ni se instala automáticamente la extensi
 ## Uso
 
 - El botón central permite o bloquea anuncios en el dominio abierto, incluidos sus subdominios. Se recarga esa pestaña al cambiarlo
-- El interruptor general pausa o reanuda AdStop
+- Desde Ajustes puedes pausar o reanudar AdStop en todas las webs
 - El contador muestra solicitudes de anuncios y rastreadores bloqueadas en la página abierta, con un listado de dominios y sus respectivos bloqueos
 - El contador se actualiza en directo y se reinicia al recargar o navegar a otra página. Cada pestaña mantiene su registro independiente y el icono muestra su cifra
+- Total anuncios bloqueados suma los bloqueos de todas las pestañas y se conserva al cerrar el navegador, recargar la extensión o cambiar los ajustes. Empieza a contar desde que instalas esta versión
 - En Ajustes puedes activar filtros visuales, scripts de las listas, cobertura ampliada y los controles de plataformas de streaming
 - Webs permitidas desactiva la protección para ese dominio y sus subdominios
 - Dominios bloqueados impide cargar sus recursos. No bloquea abrir esos dominios como página principal
@@ -123,7 +124,7 @@ Para actualizar la integración de Twitch revisa la revisión fijada en `scripts
 
 ## Privacidad y licencia
 
-AdStop no envía historial, estadísticas ni ajustes a un servidor propio. Los ajustes se guardan en `chrome.storage.local`. Los registros de bloqueos se guardan en `chrome.storage.session`, desaparecen al cerrar el navegador y se eliminan al cerrar su pestaña o iniciar otra navegación. Guardan dominios, contadores e identificadores temporales de solicitudes, sin rutas ni parámetros de las URL.
+AdStop no envía historial, estadísticas ni ajustes a un servidor propio. Los ajustes y el total acumulado se guardan en `chrome.storage.local`. Ese total conserva solo una cifra, sin historial de dominios. Los registros por página se guardan en `chrome.storage.session`, desaparecen al cerrar el navegador y se eliminan al cerrar su pestaña o iniciar otra navegación. Guardan dominios, contadores e identificadores temporales de solicitudes, sin rutas ni parámetros de las URL.
 
 El acceso a webs HTTP y HTTPS permite bloquear recursos, aplicar filtros y ejecutar las integraciones solicitadas. `webNavigation` permite reiniciar el contador cuando cambia la página y `declarativeNetRequestFeedback` permite registrar los bloqueos de AdStop. No pide acceso a cookies, contraseñas ni al historial guardado del navegador. El módulo de Twitch utiliza las solicitudes de reproducción de la propia plataforma para buscar variantes del directo, con las credenciales que esa sesión ya utiliza.
 

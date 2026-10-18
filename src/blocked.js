@@ -2,6 +2,34 @@ const pages = new Map();
 let blockingIndex;
 let dynamicIds = new Set();
 let pending = Promise.resolve();
+let lifetimeTotal = 0;
+let lifetimeLoaded;
+
+async function loadTotal() {
+  lifetimeLoaded ||= chrome.storage.local.get('blockedTotal').then(stored => {
+    lifetimeTotal = Number.isSafeInteger(stored.blockedTotal) && stored.blockedTotal >= 0 ? stored.blockedTotal : 0;
+  });
+  await lifetimeLoaded;
+  return lifetimeTotal;
+}
+
+export async function totalBlocked() {
+  await pending;
+  return loadTotal();
+}
+
+async function setTabBadge(tabId, text) {
+  try {
+    await chrome.action.setBadgeText({ tabId, text });
+  } catch (error) {
+    try {
+      await chrome.tabs.get(tabId);
+    } catch {
+      return;
+    }
+    throw error;
+  }
+}
 
 function enqueue(operation) {
   const result = pending.then(operation);
@@ -33,7 +61,7 @@ export async function refreshBadges(enabled) {
   const tabs = await chrome.tabs.query({});
   await Promise.all(tabs.map(async tab => {
     const page = await loadPage(tab.id);
-    await chrome.action.setBadgeText({ tabId: tab.id, text: enabled ? page.total ? page.total > 999 ? '999+' : String(page.total) : '' : 'OFF' });
+    await setTabBadge(tab.id, enabled ? page.total ? page.total > 999 ? '999+' : String(page.total) : '' : 'OFF');
   }));
 }
 
@@ -43,7 +71,7 @@ export function observeBlockedRequests(initialize) {
     enqueue(async () => {
       pages.delete(details.tabId);
       await chrome.storage.session.remove(`blocked:${details.tabId}`);
-      await chrome.action.setBadgeText({ tabId: details.tabId, text: null });
+      await setTabBadge(details.tabId, null);
     });
   });
   chrome.tabs.onRemoved.addListener(tabId => {
@@ -77,8 +105,11 @@ export function observeBlockedRequests(initialize) {
       if (entry) entry[1]++;
       else if (page.domains.length < 200) page.domains.push([domain, 1]);
       else page.other++;
+      await loadTotal();
+      lifetimeTotal++;
+      await chrome.storage.local.set({ blockedTotal: lifetimeTotal });
       await chrome.storage.session.set({ [`blocked:${info.request.tabId}`]: page });
-      await chrome.action.setBadgeText({ tabId: info.request.tabId, text: page.total > 999 ? '999+' : String(page.total) });
+      await setTabBadge(info.request.tabId, page.total > 999 ? '999+' : String(page.total));
     });
   });
 }
