@@ -55,7 +55,7 @@ async function applySettings(value) {
   }
   await registerScripts(value);
   await chrome.action.setBadgeText({ text: value.enabled ? '' : 'OFF' });
-  await chrome.action.setBadgeBackgroundColor({ color: value.enabled ? '#df2537' : '#7a6a70' });
+  await chrome.action.setBadgeBackgroundColor({ color: '#526078' });
   await refreshBadges(value.enabled);
 }
 
