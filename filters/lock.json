@@ -1,0 +1,75 @@
+{
+  "downloadedAt": "2026-10-18T22:38:19.398Z",
+  "sources": [
+    {
+      "id": "ublock-fixes",
+      "name": "uBlock Origin Quick fixes",
+      "url": "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/quick-fixes.txt",
+      "homepage": "https://github.com/uBlockOrigin/uAssets",
+      "license": "GPL-3.0-only",
+      "sha256": "e11ad7f39e726dfd43da2be89a836aa74cfcdf33393dbf66a8e16c3ab4987d59",
+      "bytes": 88911
+    },
+    {
+      "id": "ublock-unbreak",
+      "name": "uBlock Origin Unbreak",
+      "url": "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/unbreak.txt",
+      "homepage": "https://github.com/uBlockOrigin/uAssets",
+      "license": "GPL-3.0-only",
+      "sha256": "9214f444caf23d49e4a441818f0bc88fb571a392a874314491bbacdfac77a20c",
+      "bytes": 280985
+    },
+    {
+      "id": "ublock",
+      "name": "uBlock Origin Filters",
+      "url": "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/filters.txt",
+      "homepage": "https://github.com/uBlockOrigin/uAssets",
+      "license": "GPL-3.0-only",
+      "sha256": "4e46ca72be049ae4c9f7cd79fc9df303ec7bc151bb3aea23f18dc8c095764877",
+      "bytes": 471622
+    },
+    {
+      "id": "pie",
+      "name": "Pie Custom",
+      "url": "https://raw.githubusercontent.com/piedotorg/pie-adblock-rules/main/adb-filters/pie_custom.txt",
+      "homepage": "https://github.com/piedotorg/pie-adblock-rules",
+      "license": "GPL-3.0-only",
+      "sha256": "91c53cd035832abe3026f214006435132270936fe604782da77916e1c4c1e08d",
+      "bytes": 63579
+    },
+    {
+      "id": "easyprivacy",
+      "name": "EasyPrivacy",
+      "url": "https://easylist.to/easylist/easyprivacy.txt",
+      "homepage": "https://easylist.to/",
+      "license": "GPL-3.0-or-later OR CC-BY-SA-3.0",
+      "sha256": "a9fd72399e4ee4f237d6167e64e28b3ab1137e43a52009cad42193c5031e9101",
+      "bytes": 1509977
+    },
+    {
+      "id": "easylist",
+      "name": "EasyList",
+      "url": "https://easylist.to/easylist/easylist.txt",
+      "homepage": "https://easylist.to/",
+      "license": "GPL-3.0-or-later OR CC-BY-SA-3.0",
+      "sha256": "4b666a5f9ef7db4fe6cb29a6f807219444315ba6be4573bdcbfd348a2e827c30",
+      "bytes": 2193949
+    },
+    {
+      "id": "spanish",
+      "name": "EasyList Spanish",
+      "url": "https://easylist-downloads.adblockplus.org/easylistspanish.txt",
+      "homepage": "https://github.com/easylist/easylistspanish",
+      "license": "GPL-3.0-or-later OR CC-BY-SA-3.0",
+      "sha256": "4d899120af7b3cf836dd963ba32d69bff8651eb0528e8b53ce0b275ef5369945",
+      "bytes": 128171
+    }
+  ],
+  "twitch": {
+    "url": "https://raw.githubusercontent.com/pixeltris/TwitchAdSolutions/f8f86706daf90daa534b26bce5b2f01238667d5f/vaft/vaft-ublock-origin.js",
+    "revision": "f8f86706daf90daa534b26bce5b2f01238667d5f",
+    "license": "MIT",
+    "sha256": "8ba15a99627c3d2a8fab3c3011b43d68ecb89eb40af549b0052d98449f02f591",
+    "bundledSha256": "e3a14a2253587935672c267012d37deb8a7702d9131ce38546b84953bb2d920a"
+  }
+}

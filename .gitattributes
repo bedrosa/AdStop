@@ -1,0 +1,8 @@
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.png binary
+*.gif binary
+*.zip binary
+filters/upstream/* -text
+vendor/* -text
+LICENSE -text

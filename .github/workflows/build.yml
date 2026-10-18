@@ -1,0 +1,40 @@
+name: Comprobar y empaquetar AdStop
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '20 5 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Actualizar listas para paquetes semanales
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: npm run filters:update
+      - run: npx playwright install --with-deps chromium
+      - run: npm run check
+      - run: npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AdStop
+          path: releases/
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Comprobaciones
+          path: |
+            reports/
+            test-results/*.png
+            test-results/*.json

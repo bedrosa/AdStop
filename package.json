@@ -1,0 +1,30 @@
+{
+  "name": "adstop",
+  "version": "1.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Bloqueador de anuncios para navegadores compatibles con WebExtensions",
+  "license": "GPL-3.0-only",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "filters:update": "node scripts/update-filters.mjs",
+    "build": "node scripts/build.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "test:browser": "node tests/browser.mjs",
+    "test:brave": "node tests/brave.mjs",
+    "package": "node scripts/package.mjs",
+    "check": "npm run test && npm run build && npm run test:browser"
+  },
+  "devDependencies": {
+    "@adguard/agtree": "4.2.1",
+    "@adguard/dnr-converter": "2.0.0",
+    "@adguard/extended-css": "2.3.0",
+    "@adguard/re2-wasm": "1.2.0",
+    "@adguard/scriptlets": "2.5.1",
+    "esbuild": "0.25.12",
+    "fflate": "0.8.2",
+    "playwright": "1.56.1"
+  }
+}

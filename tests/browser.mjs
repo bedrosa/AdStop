@@ -1,0 +1,267 @@
+import { chromium } from 'playwright';
+import { createServer } from 'node:http';
+import { mkdir, mkdtemp, rm, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+
+const resultsRoot = path.resolve('test-results');
+await mkdir(resultsRoot, { recursive: true });
+const profile = await mkdtemp(path.join(resultsRoot, 'chromium-'));
+const requests = [];
+const checks = [];
+const server = createServer((request, response) => {
+  requests.push({ host: request.headers.host, url: request.url });
+  if (request.url === '/favicon.ico') { response.writeHead(204).end(); return; }
+  if (request.url.startsWith('/youtubei/v1/')) {
+    response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ adPlacements: [{ ad: true }], adSlots: [1], playerAds: [1], videoDetails: { title: 'Contenido de prueba' }, streamingData: { formats: [] } }));
+    return;
+  }
+  if (request.url.startsWith('/resource.js')) {
+    response.writeHead(200, { 'content-type': 'text/javascript', 'access-control-allow-origin': '*' }).end('window.adstopResourceLoaded = true');
+    return;
+  }
+  if (request.url === '/fixture.js') {
+    response.writeHead(200, { 'content-type': 'text/javascript' }).end('window.ytInitialPlayerResponse = {adPlacements:[1],adSlots:[2],playerAds:[3],videoDetails:{title:"Contenido"}}; window.adstopContentLoaded = true;');
+    return;
+  }
+  const isVideo = /youtube\.com|twitch\.tv/.test(request.headers.host);
+  response.writeHead(200, { 'content-type': 'text/html', ...(isVideo ? {} : { 'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'none'; connect-src *" }) });
+  response.end('<!doctype html><html lang="es"><head><title>AdStop Fixture</title><script src="/fixture.js"></script></head><body><h1>Contenido de prueba</h1><div class="adsbygoogle" id="ad">Publicidad</div><div id="personal">Elemento personal</div><div id="movie_player"><video></video><button class="ytp-ad-skip-button">Saltar</button></div></body></html>');
+});
+await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+const port = server.address().port;
+let context;
+
+async function check(name, fn) {
+  await fn();
+  checks.push(name);
+  console.log(`Correcto: ${name}`);
+}
+
+try {
+  const extensionPath = path.resolve('dist/chromium');
+  context = await chromium.launchPersistentContext(profile, {
+    channel: 'chromium', headless: true,
+    args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`, '--no-proxy-server', '--host-resolver-rules=MAP *.adstop.test 127.0.0.1, MAP ads.doubleclick.net 127.0.0.1, MAP www.youtube.com 127.0.0.1, MAP www.twitch.tv 127.0.0.1, MAP tune.pk 127.0.0.1'],
+    viewport: { width: 1200, height: 900 }
+  });
+  let worker;
+  try {
+    worker = context.serviceWorkers()[0] || await context.waitForEvent('serviceworker', { timeout: 15000 });
+  } catch (error) {
+    const diagnostics = await context.newPage();
+    await diagnostics.goto('chrome://extensions/');
+    console.log(await diagnostics.evaluate(() => new Promise(resolve => chrome.developerPrivate.getExtensionsInfo({ includeDisabled: true, includeTerminated: true }, resolve))));
+    throw error;
+  }
+  const id = new URL(worker.url()).host;
+  const ui = await context.newPage();
+  const uiErrors = [];
+  ui.on('pageerror', error => uiErrors.push(error.message));
+  await ui.goto(`chrome-extension://${id}/options.html`);
+  const startup = await ui.evaluate(() => chrome.runtime.sendMessage({ type: 'status' }));
+  assert.equal(startup.ok, true, startup.error);
+  await ui.waitForFunction(() => document.querySelector('#version').textContent !== '');
+  const status = () => ui.evaluate(() => chrome.runtime.sendMessage({ type: 'status' }));
+  const save = settings => ui.evaluate(settings => chrome.runtime.sendMessage({ type: 'save', settings }), settings);
+  const initial = await status();
+  const metadata = JSON.parse(await readFile('dist/chromium/data/metadata.json', 'utf8'));
+  await check('carga de la extensión y cuota ampliada', async () => {
+    assert.equal(initial.ok, true);
+    assert.equal(initial.enabledRules, metadata.networkRules);
+    assert.ok(metadata.scriptletRules > 1000);
+    const registered = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts());
+    assert.deepEqual(registered.map(script => script.id).sort(), ['scriptlets', 'twitch', 'youtube']);
+  });
+
+  const page = await context.newPage();
+  await page.goto(`http://www.adstop.test:${port}/`);
+  const tabId = await ui.evaluate(url => chrome.tabs.query({}).then(tabs => tabs.find(tab => tab.url === url).id), page.url());
+  const stats = () => ui.evaluate(tabId => chrome.runtime.sendMessage({ type: 'pageStats', tabId }), tabId);
+  await page.waitForFunction(() => window.adstopContentLoaded === true);
+  await check('oculta anuncios con una política CSP que prohíbe estilos inline', async () => {
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('#ad')).display === 'none');
+    assert.equal(await page.locator('h1').isVisible(), true);
+  });
+  const tryRequest = () => page.evaluate(url => fetch(url).then(() => true, () => false), `http://ads.doubleclick.net:${port}/resource.js?${Date.now()}`);
+  await check('bloquea solicitudes reales antes de llegar al servidor', async () => {
+    assert.equal((await stats()).page.total, 0);
+    assert.equal(await tryRequest(), false);
+    assert.equal(requests.some(request => request.host.startsWith('ads.doubleclick.net')), false);
+    assert.deepEqual((await stats()).page, { total: 1, domains: [{ domain: 'ads.doubleclick.net', count: 1 }], other: 0 });
+    assert.equal(await ui.evaluate(tabId => chrome.action.getBadgeText({ tabId }), tabId), '1');
+  });
+  await check('el contador distingue solicitudes y pestañas', async () => {
+    await tryRequest();
+    await tryRequest();
+    assert.equal((await stats()).page.total, 3);
+    const other = await context.newPage();
+    await other.goto(`http://www.adstop.test:${port}/otra`);
+    const otherId = await ui.evaluate(url => chrome.tabs.query({}).then(tabs => tabs.find(tab => tab.url === url).id), other.url());
+    const otherStats = await ui.evaluate(tabId => chrome.runtime.sendMessage({ type: 'pageStats', tabId }), otherId);
+    assert.equal(otherStats.page.total, 0);
+    assert.equal((await stats()).page.total, 3);
+    await other.close();
+  });
+  await check('una excepción restaura recursos y filtros visuales', async () => {
+    const result = await save({ ...initial.settings, allowlist: ['adstop.test'] });
+    assert.equal(result.ok, true, result.error);
+    await page.reload();
+    await page.waitForFunction(() => window.adstopContentLoaded === true);
+    assert.equal(await page.locator('#ad').isVisible(), true);
+    assert.equal(await tryRequest(), true);
+    assert.equal((await stats()).page.total, 0);
+  });
+  await check('los dominios personales se bloquean con reglas dinámicas', async () => {
+    const result = await save({ ...initial.settings, blockedDomains: ['static.adstop.test'] });
+    assert.equal(result.ok, true, result.error);
+    await page.reload();
+    const loaded = await page.evaluate(url => fetch(url).then(() => true, () => false), `http://static.adstop.test:${port}/resource.js`);
+    assert.equal(loaded, false);
+    assert.deepEqual((await stats()).page, { total: 1, domains: [{ domain: 'static.adstop.test', count: 1 }], other: 0 });
+  });
+  await check('los elementos personales se ocultan al recargar', async () => {
+    const result = await save({ ...initial.settings, customCss: 'adstop.test###personal' });
+    assert.equal(result.ok, true, result.error);
+    await page.reload();
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('#personal')).display === 'none');
+  });
+  await check('el interruptor general desactiva filtros y scripts', async () => {
+    const result = await save({ ...initial.settings, enabled: false });
+    assert.equal(result.ok, true, result.error);
+    assert.equal(result.enabledRules, 0);
+    await page.reload();
+    assert.equal(await page.locator('#ad').isVisible(), true);
+    assert.equal(await tryRequest(), true);
+    assert.equal((await stats()).page.total, 0);
+    assert.equal((await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts())).length, 0);
+    assert.equal((await save(initial.settings)).ok, true);
+  });
+  await check('una importación inválida conserva la configuración anterior', async () => {
+    const result = await save({ ...initial.settings, allowlist: ['dominio.com/ruta'] });
+    assert.equal(result.ok, false);
+    assert.deepEqual((await status()).settings.allowlist, []);
+  });
+  await check('los scriptlets de las listas se ejecutan y respetan sus ámbitos', async () => {
+    await page.goto(`http://tune.pk:${port}/`);
+    assert.equal(await page.evaluate(() => window.ad_blocker), false);
+    await page.goto(`http://www.adstop.test:${port}/`);
+    assert.equal(await page.evaluate(() => window.ad_blocker), undefined);
+  });
+  await check('YouTube limpia respuesta inicial, fetch y XMLHttpRequest', async () => {
+    await page.goto(`http://www.youtube.com:${port}/watch?v=adstop-test`);
+    await page.waitForFunction(() => window.adstopContentLoaded === true);
+    assert.equal(await page.evaluate(() => window.__adstopYoutube), true);
+    assert.equal(await page.evaluate(() => window.ytInitialPlayerResponse.adPlacements), undefined);
+    const data = await page.evaluate(async () => {
+      const fetched = await (await fetch('/youtubei/v1/player')).json();
+      const xhr = await new Promise(resolve => {
+        const request = new XMLHttpRequest();
+        request.open('GET', '/youtubei/v1/player');
+        request.responseType = 'json';
+        request.onload = () => resolve(request.response);
+        request.send();
+      });
+      return { fetched, xhr };
+    });
+    for (const [transport, response] of Object.entries(data)) {
+      assert.equal(response.adPlacements, undefined, `${transport}: ${JSON.stringify(response)}`);
+      assert.equal(response.playerAds, undefined, `${transport}: ${JSON.stringify(response)}`);
+      assert.equal(response.videoDetails.title, 'Contenido de prueba');
+    }
+  });
+  await check('YouTube salta anuncios y restaura velocidad y audio', async () => {
+    await page.evaluate(() => {
+      const video = document.querySelector('video');
+      Object.defineProperty(video, 'duration', { configurable: true, value: 30 });
+      video.playbackRate = 1.25;
+      video.muted = false;
+      document.querySelector('#movie_player').classList.add('ad-showing');
+      document.querySelector('button').onclick = () => { window.adstopSkipped = true; };
+    });
+    await page.waitForFunction(() => window.adstopSkipped === true && document.querySelector('video').muted);
+    assert.equal(await page.locator('video').evaluate(video => video.playbackRate), 16);
+    await page.locator('#movie_player').evaluate(player => player.classList.remove('ad-showing'));
+    await page.waitForFunction(() => !document.querySelector('video').muted && document.querySelector('video').playbackRate === 1.25);
+  });
+  await check('el módulo de Twitch se instala al inicio y puede desactivarse', async () => {
+    await page.goto(`http://www.twitch.tv:${port}/adstop-test`);
+    assert.equal(await page.evaluate(() => window.twitchAdSolutionsVersion), 24);
+    assert.equal(typeof await page.evaluate(() => typeof window.simulateAds), 'string');
+    const result = await save({ ...initial.settings, twitch: false });
+    assert.equal(result.ok, true, result.error);
+    await page.reload();
+    assert.equal(await page.evaluate(() => window.twitchAdSolutionsVersion), undefined);
+    assert.equal((await save(initial.settings)).ok, true);
+  });
+  await check('ajustes, exportación e importación desde la interfaz', async () => {
+    await ui.reload();
+    await ui.waitForFunction(() => document.querySelector('#version').textContent !== '');
+    await ui.locator('#allowlist').fill('permitida.adstop.test');
+    await ui.locator('#save').click();
+    await ui.waitForFunction(() => document.querySelector('#message').textContent.startsWith('Cambios guardados'));
+    assert.deepEqual((await status()).settings.allowlist, ['permitida.adstop.test']);
+    const downloadEvent = ui.waitForEvent('download');
+    await ui.locator('#export').click();
+    const download = await downloadEvent;
+    const backupPath = path.join(resultsRoot, 'backup.json');
+    await download.saveAs(backupPath);
+    assert.equal(JSON.parse(await readFile(backupPath, 'utf8')).format, 'adstop-settings');
+    await save(initial.settings);
+    await ui.locator('#import-file').setInputFiles(backupPath);
+    await ui.waitForFunction(() => document.querySelector('#message').textContent.startsWith('Ajustes importados'));
+    assert.deepEqual((await status()).settings.allowlist, ['permitida.adstop.test']);
+    await save(initial.settings);
+    await ui.reload();
+    await ui.waitForFunction(() => document.querySelector('#version').textContent !== '');
+    assert.deepEqual(uiErrors, []);
+    assert.equal(await ui.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    await ui.screenshot({ path: path.join(resultsRoot, 'options.png'), fullPage: true });
+    await ui.setViewportSize({ width: 390, height: 844 });
+    assert.equal(await ui.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    await ui.screenshot({ path: path.join(resultsRoot, 'options-mobile.png'), fullPage: true });
+  });
+  await check('el popup muestra bloqueos reales y actualiza su lista en directo', async () => {
+    await page.goto(`http://www.adstop.test:${port}/`);
+    await tryRequest();
+    const popup = await context.newPage();
+    popup.on('pageerror', error => uiErrors.push(error.message));
+    await popup.setViewportSize({ width: 356, height: 600 });
+    await popup.goto(`chrome-extension://${id}/popup.html`);
+    await page.bringToFront();
+    await popup.reload();
+    await popup.waitForFunction(() => document.querySelector('#blocked-count').textContent === '1');
+    assert.equal(await popup.locator('#blocked-list li span').textContent(), 'ads.doubleclick.net');
+    assert.equal(await popup.locator('#network-count, #cosmetic-count').count(), 0);
+    assert.equal(await popup.locator('#enabled').isChecked(), true);
+    assert.equal(await popup.locator('#enabled').isDisabled(), false);
+    assert.deepEqual(uiErrors, []);
+    await tryRequest();
+    await popup.waitForFunction(() => document.querySelector('#blocked-count').textContent === '2');
+    await popup.reload();
+    await popup.waitForFunction(() => document.querySelector('#blocked-count').textContent === '2');
+    const domains = ['one.adstop.test', 'two.adstop.test', 'three.adstop.test', 'four.adstop.test', 'five.adstop.test'];
+    assert.equal((await save({ ...initial.settings, blockedDomains: domains })).ok, true);
+    await page.evaluate(async ({ domains, port }) => {
+      await Promise.all(domains.map(domain => fetch(`http://${domain}:${port}/resource.js`).catch(() => {})));
+    }, { domains, port });
+    await popup.waitForFunction(() => document.querySelectorAll('#blocked-list li').length === 6 && document.querySelector('#blocked-count').textContent === '7');
+    assert.equal(await popup.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+    await popup.screenshot({ path: path.join(resultsRoot, 'popup.png'), fullPage: true, animations: 'disabled' });
+    const popupHeight = await popup.locator('body').evaluate(body => body.scrollHeight);
+    assert.ok(popupHeight <= 600, `El popup ocupa ${popupHeight} pixeles`);
+    await page.reload();
+    await popup.waitForFunction(() => document.querySelector('#blocked-count').textContent === '0');
+    assert.equal(await popup.locator('#blocked-empty').isVisible(), true);
+    assert.equal(await popup.locator('#blocked-list li').count(), 0);
+    await save(initial.settings);
+    await popup.close();
+  });
+  await writeFile(path.join(resultsRoot, 'browser-checks.json'), JSON.stringify({ browser: await context.browser().version(), checks, livePlatformsTested: false }, null, 2));
+  console.log(`${checks.length} comprobaciones de navegador superadas`);
+} finally {
+  if (context) await context.close();
+  await new Promise(resolve => server.close(resolve));
+  if (!profile.startsWith(resultsRoot + path.sep)) throw new Error('Perfil temporal fuera del directorio de pruebas');
+  await rm(profile, { recursive: true, force: true });
+}

@@ -1,0 +1,9 @@
+node_modules/
+test-results/
+*.log
+.DS_Store
+_metadata/
+dist/
+releases/
+reports/
+filters/.incoming/

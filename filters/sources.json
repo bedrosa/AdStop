@@ -1,0 +1,51 @@
+[
+  {
+    "id": "ublock-fixes",
+    "name": "uBlock Origin Quick fixes",
+    "url": "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/quick-fixes.txt",
+    "homepage": "https://github.com/uBlockOrigin/uAssets",
+    "license": "GPL-3.0-only"
+  },
+  {
+    "id": "ublock-unbreak",
+    "name": "uBlock Origin Unbreak",
+    "url": "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/unbreak.txt",
+    "homepage": "https://github.com/uBlockOrigin/uAssets",
+    "license": "GPL-3.0-only"
+  },
+  {
+    "id": "ublock",
+    "name": "uBlock Origin Filters",
+    "url": "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/filters.txt",
+    "homepage": "https://github.com/uBlockOrigin/uAssets",
+    "license": "GPL-3.0-only"
+  },
+  {
+    "id": "pie",
+    "name": "Pie Custom",
+    "url": "https://raw.githubusercontent.com/piedotorg/pie-adblock-rules/main/adb-filters/pie_custom.txt",
+    "homepage": "https://github.com/piedotorg/pie-adblock-rules",
+    "license": "GPL-3.0-only"
+  },
+  {
+    "id": "easyprivacy",
+    "name": "EasyPrivacy",
+    "url": "https://easylist.to/easylist/easyprivacy.txt",
+    "homepage": "https://easylist.to/",
+    "license": "GPL-3.0-or-later OR CC-BY-SA-3.0"
+  },
+  {
+    "id": "easylist",
+    "name": "EasyList",
+    "url": "https://easylist.to/easylist/easylist.txt",
+    "homepage": "https://easylist.to/",
+    "license": "GPL-3.0-or-later OR CC-BY-SA-3.0"
+  },
+  {
+    "id": "spanish",
+    "name": "EasyList Spanish",
+    "url": "https://easylist-downloads.adblockplus.org/easylistspanish.txt",
+    "homepage": "https://github.com/easylist/easylistspanish",
+    "license": "GPL-3.0-or-later OR CC-BY-SA-3.0"
+  }
+]

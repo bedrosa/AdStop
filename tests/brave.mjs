@@ -1,0 +1,55 @@
+import { chromium } from 'playwright';
+import { createServer } from 'node:http';
+import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+
+const executablePath = process.env.ADSTOP_BRAVE_PATH || 'C:/Program Files/BraveSoftware/Brave-Browser/Application/brave.exe';
+await access(executablePath);
+const resultsRoot = path.resolve('test-results');
+await mkdir(resultsRoot, { recursive: true });
+const profile = await mkdtemp(path.join(resultsRoot, 'brave-'));
+const extensionPath = path.resolve('dist/chromium');
+const server = createServer((request, response) => {
+  response.writeHead(200, { 'content-type': request.url.startsWith('/resource') ? 'application/json' : 'text/html' });
+  response.end(request.url.startsWith('/resource') ? '{}' : '<!doctype html><html lang="es"><title>AdStop Brave</title><link rel="icon" href="data:,"><h1>Prueba de AdStop</h1></html>');
+});
+await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+const port = server.address().port;
+let context;
+try {
+  context = await chromium.launchPersistentContext(profile, { executablePath, headless: true, args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`, '--no-first-run', '--no-default-browser-check'] });
+  const worker = context.serviceWorkers().find(worker => worker.url().startsWith('chrome-extension://')) || await context.waitForEvent('serviceworker', { timeout: 20000, predicate: worker => worker.url().startsWith('chrome-extension://') });
+  const id = new URL(worker.url()).host;
+  const ui = await context.newPage();
+  await ui.goto(`chrome-extension://${id}/options.html`);
+  const request = message => ui.evaluate(message => chrome.runtime.sendMessage(message), message);
+  const initial = await request({ type: 'status' });
+  assert.equal(initial.ok, true, initial.error);
+  assert.equal(initial.enabledRules, initial.metadata.networkRules);
+  const page = await context.newPage();
+  await page.goto(`http://127.0.0.1:${port}/`);
+  const tabId = await ui.evaluate(url => chrome.tabs.query({}).then(tabs => tabs.find(tab => tab.url === url).id), page.url());
+  const fetchResource = () => page.evaluate(url => fetch(url).then(() => true, () => false), `http://127.0.0.1:${port}/resource?${Date.now()}`);
+  assert.equal(await fetchResource(), true);
+  assert.equal((await request({ type: 'save', settings: { ...initial.settings, blockedDomains: ['127.0.0.1'] } })).ok, true);
+  await page.reload();
+  assert.equal(await fetchResource(), false);
+  const stats = await request({ type: 'pageStats', tabId });
+  assert.deepEqual(stats.page, { total: 1, domains: [{ domain: '127.0.0.1', count: 1 }], other: 0 });
+  assert.equal(await ui.evaluate(tabId => chrome.action.getBadgeText({ tabId }), tabId), '1');
+  assert.equal((await request({ type: 'save', settings: { ...initial.settings, blockedDomains: ['127.0.0.1'], allowlist: ['127.0.0.1'] } })).ok, true);
+  await page.reload();
+  assert.equal(await fetchResource(), true);
+  assert.equal((await request({ type: 'pageStats', tabId })).page.total, 0);
+  assert.equal((await request({ type: 'save', settings: { ...initial.settings, enabled: false } })).enabledRules, 0);
+  await page.reload();
+  assert.equal(await fetchResource(), true);
+  await writeFile(path.join(resultsRoot, 'brave-checks.json'), JSON.stringify({ browser: await context.browser().version(), checks: ['Instalación', 'Listas completas', 'Bloqueo dinámico', 'Excepciones', 'Pausa general'], livePlatformsTested: false }, null, 2));
+  console.log('Brave: instalación, bloqueo, contador, listado, excepciones y pausa general comprobados');
+} finally {
+  if (context) await context.close();
+  await new Promise(resolve => server.close(resolve));
+  if (!profile.startsWith(resultsRoot + path.sep)) throw new Error('Perfil temporal fuera del directorio de pruebas');
+  await rm(profile, { recursive: true, force: true });
+}
