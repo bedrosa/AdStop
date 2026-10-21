@@ -104,6 +104,7 @@ for (const browser of ['chromium', 'firefox']) {
   await cp('vendor/LICENSE-twitch.txt', `${out}/licenses/Twitch-MIT.txt`);
   await cp('THIRD_PARTY_NOTICES.md', `${out}/licenses/THIRD_PARTY_NOTICES.md`);
   await cp('node_modules/@adguard/scriptlets/dist/redirect-files', `${out}/redirects`, { recursive: true });
+  await cp('src/redirects', `${out}/redirects`, { recursive: true });
   await makeIcons(`${out}/icons`);
   const manifest = {
     manifest_version: 3,

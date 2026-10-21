@@ -13,7 +13,7 @@ const server = createServer((request, response) => {
   requests.push({ host: request.headers.host, url: request.url });
   if (request.url === '/favicon.ico') { response.writeHead(204).end(); return; }
   if (request.url.startsWith('/youtubei/v1/')) {
-    response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ adPlacements: [{ ad: true }], adSlots: [1], playerAds: [1], videoDetails: { title: 'Contenido de prueba' }, streamingData: { formats: [] } }));
+    response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ adPlacements: [{ ad: true }], adSlots: [1], playerAds: [1], auxiliaryUi: { messageRenderers: { bkaEnforcementMessageViewModel: { title: 'Aviso antibloqueo' }, notificationRenderer: { title: 'Notificación' } } }, videoDetails: { title: 'Contenido de prueba' }, streamingData: { formats: [] } }));
     return;
   }
   if (request.url.startsWith('/resource.js')) {
@@ -213,7 +213,7 @@ try {
   await check('YouTube limpia respuesta inicial, fetch y XMLHttpRequest', async () => {
     await page.goto(`http://www.youtube.com:${port}/watch?v=adstop-test`);
     await page.waitForFunction(() => window.adstopContentLoaded === true);
-    assert.equal(await page.evaluate(() => window.__adstopYoutube), true);
+    assert.equal(await page.evaluate(() => window.__adstopYoutube), undefined);
     assert.equal(await page.evaluate(() => window.ytInitialPlayerResponse.adPlacements), undefined);
     const data = await page.evaluate(async () => {
       const fetched = await (await fetch('/youtubei/v1/player')).json();
@@ -230,7 +230,58 @@ try {
       assert.equal(response.adPlacements, undefined, `${transport}: ${JSON.stringify(response)}`);
       assert.equal(response.playerAds, undefined, `${transport}: ${JSON.stringify(response)}`);
       assert.equal(response.videoDetails.title, 'Contenido de prueba');
+      assert.equal(response.auxiliaryUi.messageRenderers.bkaEnforcementMessageViewModel, undefined);
+      assert.equal(response.auxiliaryUi.messageRenderers.notificationRenderer.title, 'Notificación');
     }
+  });
+  await check('YouTube conserva las pruebas de JSON y fetch sintéticos sin alterar sus datos', async () => {
+    const result = await page.evaluate(async () => {
+      const text = '{"adPlacements":[1],"adSlots":[2],"playerAds":[3],"number":4}';
+      const parsed = JSON.parse(text, (key, value) => key === 'number' ? value + 1 : value);
+      const synthetic = await new Response(text).json();
+      const request = new Request(`data:application/json,${encodeURIComponent(text)}`);
+      Object.defineProperty(request, 'url', { value: `${location.origin}/youtubei/v1/player` });
+      const bait = await (await fetch(request)).json();
+      return { parsed, synthetic, bait, nativeParse: JSON.parse.toString().includes('[native code]'), nativeFetch: Function.prototype.toString.call(fetch).includes('[native code]'), nativeXhr: Function.prototype.toString.call(XMLHttpRequest.prototype.open).includes('[native code]') };
+    });
+    assert.deepEqual(result.parsed, { adPlacements: [1], adSlots: [2], playerAds: [3], number: 5 });
+    for (const value of [result.synthetic, result.bait]) assert.deepEqual(value, { adPlacements: [1], adSlots: [2], playerAds: [3], number: 4 });
+    assert.equal(result.nativeParse, true);
+    assert.equal(result.nativeFetch, true);
+    assert.equal(result.nativeXhr, true);
+  });
+  await check('YouTube resuelve la comprobación publicitaria con un script local', async () => {
+    const loaded = await page.evaluate(() => new Promise(resolve => {
+      const script = document.createElement('script');
+      script.src = 'http://static.doubleclick.net/instream/ad_status.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.head.append(script);
+    }));
+    assert.equal(loaded, true);
+    assert.equal(await page.evaluate(() => window.google_ad_status), 1);
+    assert.equal(requests.some(request => request.host.startsWith('static.doubleclick.net')), false);
+  });
+  await check('YouTube cierra el aviso antibloqueo y reanuda el reproductor sin cerrar otros diálogos', async () => {
+    await page.evaluate(() => {
+      const player = document.querySelector('#movie_player');
+      player.playVideo = () => { window.adstopPlaybackResumed = true; };
+      const unrelated = document.createElement('div');
+      unrelated.id = 'notification-dialog';
+      unrelated.setAttribute('role', 'dialog');
+      unrelated.textContent = 'Notificaciones';
+      document.body.append(unrelated);
+      const message = document.createElement('ytd-enforcement-message-view-model');
+      message.textContent = 'Los bloqueadores de anuncios no se permiten en YouTube';
+      const close = document.createElement('button');
+      close.id = 'dismiss-button';
+      close.textContent = 'Cerrar';
+      close.onclick = () => { message.remove(); };
+      message.append(close);
+      document.body.append(message);
+    });
+    await page.waitForFunction(() => window.adstopPlaybackResumed && !document.querySelector('ytd-enforcement-message-view-model'));
+    assert.equal(await page.locator('#notification-dialog').isVisible(), true);
   });
   await check('YouTube salta anuncios y restaura velocidad y audio', async () => {
     await page.evaluate(() => {
@@ -245,6 +296,15 @@ try {
     assert.equal(await page.locator('video').evaluate(video => video.playbackRate), 16);
     await page.locator('#movie_player').evaluate(player => player.classList.remove('ad-showing'));
     await page.waitForFunction(() => !document.querySelector('video').muted && document.querySelector('video').playbackRate === 1.25);
+  });
+  await check('el módulo de YouTube evita duplicar scriptlets y respeta su interruptor', async () => {
+    let scripts = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts());
+    assert.ok(scripts.find(script => script.id === 'scriptlets').excludeMatches.includes('*://*.youtube.com/*'));
+    assert.equal((await save({ ...initial.settings, youtube: false })).ok, true);
+    scripts = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts());
+    assert.equal(scripts.some(script => script.id === 'youtube'), false);
+    assert.equal((scripts.find(script => script.id === 'scriptlets').excludeMatches || []).includes('*://*.youtube.com/*'), false);
+    assert.equal((await save(initial.settings)).ok, true);
   });
   await check('el módulo de Twitch se instala al inicio y puede desactivarse', async () => {
     await page.goto(`http://www.twitch.tv:${port}/adstop-test`);

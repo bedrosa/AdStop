@@ -114,6 +114,29 @@ test('YouTube conserva el contenido y retira solo las claves publicitarias previ
   assert.equal(isPlayerUrl('/youtubei/v1/player_settings', 'https://www.youtube.com'), false);
 });
 
+test('YouTube retira solo el aviso antibloqueo del reproductor y conserva otros mensajes y errores', () => {
+  const response = { auxiliaryUi: { messageRenderers: { bkaEnforcementMessageViewModel: { title: 'Aviso' }, notificationRenderer: { title: 'Notificación' } } }, playabilityStatus: { status: 'LOGIN_REQUIRED', errorScreen: { playerErrorMessageRenderer: { reason: 'Inicia sesión' } } } };
+  cleanPlayerResponse(response);
+  assert.equal(response.auxiliaryUi.messageRenderers.bkaEnforcementMessageViewModel, undefined);
+  assert.equal(response.auxiliaryUi.messageRenderers.notificationRenderer.title, 'Notificación');
+  assert.equal(response.playabilityStatus.status, 'LOGIN_REQUIRED');
+  assert.equal(response.playabilityStatus.errorScreen.playerErrorMessageRenderer.reason, 'Inicia sesión');
+});
+
+test('la comprobación publicitaria de YouTube usa un recurso local limitado al módulo activo', () => {
+  const rules = settingsRules(defaults);
+  const probe = rules.find(rule => rule.action.redirect?.extensionPath === '/redirects/youtube-ad-status.js');
+  assert.ok(probe);
+  assert.deepEqual(probe.condition.resourceTypes, ['script']);
+  assert.deepEqual(probe.condition.initiatorDomains, ['youtube.com', 'youtube-nocookie.com']);
+  const pattern = new RegExp(probe.condition.regexFilter);
+  assert.equal(pattern.test('https://static.doubleclick.net/instream/ad_status.js?test=1'), true);
+  assert.equal(pattern.test('https://static.doubleclick.net/instream/anuncio.js'), false);
+  assert.equal(pattern.test('https://falsostatic.doubleclick.net/instream/ad_status.js'), false);
+  assert.equal(settingsRules({ ...defaults, youtube: false }).some(rule => rule.action.redirect), false);
+  assert.equal(settingsRules({ ...defaults, enabled: false }).some(rule => rule.action.redirect), false);
+});
+
 test('Twitch distingue segmentos publicitarios y mantiene los del directo', async () => {
   const source = await readFile('vendor/twitch.js', 'utf8');
   const context = vm.createContext({ document: { location: { hostname: 'www.twitch.tv' } } });

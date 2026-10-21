@@ -64,7 +64,9 @@ Cada control adicional activa o desactiva la protección de red, los filtros vis
 
 Netflix incorpora una adaptación del script de Pie para neutralizar propiedades publicitarias del reproductor. Conserva el contrato de Object.defineProperty y deja intactas las propiedades del contenido. Los filtros de Pie también incluyen reglas de reproducción para Prime Video, Max, Hulu, Pluto TV y Peacock que se aplican cuando sus scriptlets son compatibles.
 
-YouTube tiene un módulo local para limpiar datos publicitarios del reproductor en la respuesta inicial, fetch y XMLHttpRequest. También pulsa los botones de salto detectados y silencia o acelera los anuncios cortos que llegan a mostrarse. Los filtros y scriptlets de las listas complementan este módulo.
+YouTube tiene un módulo local para limpiar datos publicitarios y el mensaje de detección en la respuesta inicial y en respuestas reales del reproductor recibidas por fetch y XMLHttpRequest. Conserva JSON.parse y las respuestas sintéticas para evitar alterar las comprobaciones internas de la página. La comprobación ad_status.js se sustituye por un script local, limitado a YouTube, sin descargar publicidad de ese servidor. Los scriptlets generales se excluyen de YouTube mientras está activo este módulo para evitar aplicar varias modificaciones sobre las mismas API.
+
+Si aparece un aviso antibloqueo que admite cierre, el módulo utiliza su botón nativo y reanuda el reproductor. No cierra otros diálogos ni convierte errores de cuenta, edad o disponibilidad en respuestas de reproducción válidas. También pulsa los botones de salto detectados y silencia o acelera los anuncios cortos que llegan a mostrarse.
 
 Twitch integra vaft de TwitchAdSolutions, fijado a una revisión concreta y distribuido con su licencia MIT. Intenta obtener una variante del directo sin publicidad y evita reproducir los segmentos identificados como anuncios. Puede haber pausas, bajadas de calidad o anuncios que se escapen. Su repositorio original fue archivado en marzo de 2026, por lo que este módulo necesita seguimiento propio. No utiliza un servicio de proxy externo.
 

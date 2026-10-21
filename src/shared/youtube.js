@@ -5,6 +5,8 @@ export function cleanPlayerResponse(value) {
   for (const key of adKeys) {
     if (Object.hasOwn(value, key)) Reflect.deleteProperty(value, key);
   }
+  const messages = value.auxiliaryUi?.messageRenderers;
+  if (messages && typeof messages === 'object') Reflect.deleteProperty(messages, 'bkaEnforcementMessageViewModel');
   if (value.playerResponse) cleanPlayerResponse(value.playerResponse);
   if (value.response) cleanPlayerResponse(value.response);
   if (Array.isArray(value)) value.forEach(cleanPlayerResponse);
