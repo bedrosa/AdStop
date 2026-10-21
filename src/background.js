@@ -19,7 +19,8 @@ async function registerScripts(value) {
     ['youtube', value.youtube, ['*://*.youtube.com/*', '*://*.youtube-nocookie.com/*']],
     ['twitch', value.twitch, ['*://*.twitch.tv/*']]
   ]) {
-    if (value.enabled && enabled) desired.push({ id, js: [`content/${id}.js`], matches, excludeMatches, runAt: 'document_start', world: 'MAIN', allFrames: false, persistAcrossSessions: true });
+    const exclusions = id === 'scriptlets' && value.youtube ? [...excludeMatches, '*://*.youtube.com/*', '*://*.youtube-nocookie.com/*'] : excludeMatches;
+    if (value.enabled && enabled) desired.push({ id, js: [`content/${id}.js`], matches, excludeMatches: exclusions, runAt: 'document_start', world: 'MAIN', allFrames: false, persistAcrossSessions: true });
   }
   const current = await chrome.scripting.getRegisteredContentScripts();
   const remove = current.filter(script => !desired.some(item => item.id === script.id)).map(script => script.id);

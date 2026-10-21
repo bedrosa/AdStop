@@ -71,8 +71,38 @@ try {
   await popup.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
   await ui.getByRole('button', { name: 'Activar modo claro' }).click();
   await popup.waitForFunction(() => document.documentElement.dataset.theme === 'light');
-  await writeFile(path.join(resultsRoot, 'brave-checks.json'), JSON.stringify({ browser: await context.browser().version(), checks: ['Instalación', 'Listas completas', 'Bloqueo dinámico', 'Excepciones', 'Pausa general', 'Modo oscuro compartido y guardado', 'Icono gris al desactivar'], livePlatformsTested: false }, null, 2));
-  console.log('Brave: instalación, bloqueo, contador, excepciones, pausa general, modo oscuro e icono gris comprobados');
+  assert.equal((await request({ type: 'save', settings: initial.settings })).ok, true);
+  await context.route('https://www.youtube.com/watch?v=adstop-test', route => route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>YouTube de prueba</title><div id="movie_player"><video></video></div>' }));
+  await page.goto('https://www.youtube.com/watch?v=adstop-test');
+  const youtube = await page.evaluate(async () => {
+    const text = '{"adPlacements":[1],"adSlots":[2],"playerAds":[3]}';
+    const request = new Request(`data:application/json,${encodeURIComponent(text)}`);
+    Object.defineProperty(request, 'url', { value: 'https://www.youtube.com/youtubei/v1/player' });
+    const synthetic = await (await fetch(request)).json();
+    const probe = await new Promise(resolve => {
+      const script = document.createElement('script');
+      script.src = 'https://static.doubleclick.net/instream/ad_status.js';
+      script.onload = () => resolve(window.google_ad_status);
+      script.onerror = () => resolve(false);
+      document.head.append(script);
+    });
+    const player = document.querySelector('#movie_player');
+    player.playVideo = () => { window.adstopPlaybackResumed = true; };
+    const message = document.createElement('ytd-enforcement-message-view-model');
+    message.textContent = 'Los bloqueadores de anuncios no se permiten en YouTube';
+    const close = document.createElement('button');
+    close.id = 'dismiss-button';
+    close.onclick = () => message.remove();
+    message.append(close);
+    document.body.append(message);
+    return { parsed: JSON.parse(text), synthetic, probe };
+  });
+  assert.deepEqual(youtube.parsed, { adPlacements: [1], adSlots: [2], playerAds: [3] });
+  assert.deepEqual(youtube.synthetic, youtube.parsed);
+  assert.equal(youtube.probe, 1);
+  await page.waitForFunction(() => window.adstopPlaybackResumed && !document.querySelector('ytd-enforcement-message-view-model'));
+  await writeFile(path.join(resultsRoot, 'brave-checks.json'), JSON.stringify({ browser: await context.browser().version(), checks: ['Instalación', 'Listas completas', 'Bloqueo dinámico', 'Excepciones', 'Pausa general', 'Modo oscuro compartido y guardado', 'Icono gris al desactivar', 'YouTube con pruebas sintéticas, recurso local y cierre del aviso'], livePlatformsTested: false }, null, 2));
+  console.log('Brave: bloqueo, ajustes, iconos y corrección antibloqueo de YouTube comprobados');
 } finally {
   if (context) await context.close();
   await new Promise(resolve => server.close(resolve));
