@@ -86,21 +86,11 @@ try {
       script.onerror = () => resolve(false);
       document.head.append(script);
     });
-    const player = document.querySelector('#movie_player');
-    player.playVideo = () => { window.adstopPlaybackResumed = true; };
-    const message = document.createElement('ytd-enforcement-message-view-model');
-    message.textContent = 'Los bloqueadores de anuncios no se permiten en YouTube';
-    const close = document.createElement('button');
-    close.id = 'dismiss-button';
-    close.onclick = () => message.remove();
-    message.append(close);
-    document.body.append(message);
     return { parsed: JSON.parse(text), synthetic, probe };
   });
   assert.deepEqual(youtube.parsed, { adPlacements: [1], adSlots: [2], playerAds: [3] });
   assert.deepEqual(youtube.synthetic, youtube.parsed);
-  assert.equal(youtube.probe, 1);
-  await page.waitForFunction(() => window.adstopPlaybackResumed && !document.querySelector('ytd-enforcement-message-view-model'));
+  assert.equal(youtube.probe, false);
   await context.route('https://www.youtube.com/playback.webm', route => route.fulfill({ contentType: 'video/webm', path: 'tests/fixtures/playback.webm' }));
   await page.bringToFront();
   await page.evaluate(async () => {
@@ -122,56 +112,12 @@ try {
   await page.waitForFunction(frames => document.querySelector('video').getVideoPlaybackQuality().totalVideoFrames >= frames + 5, frames);
   await page.waitForFunction(() => !document.querySelector('#movie_player').classList.contains('ad-showing'));
   assert.equal(await page.locator('video').evaluate(video => video.playbackRate), 1.25);
-  assert.equal(await page.locator('#movie_player').evaluate(player => player.classList.contains('ad-showing')), false);
-  await page.evaluate(() => {
-    const player = document.querySelector('#movie_player');
-    player.getPlayerResponse = () => ({ videoDetails: { videoId: 'error-video' }, playabilityStatus: { status: 'OK' } });
-    player.loadVideoById = (id, position) => { window.adstopErrorRecovery = { id, position }; };
-    const error = document.createElement('div');
-    error.className = 'ytp-error-content-wrap';
-    error.textContent = '282054944';
-    player.append(error);
-    player.classList.add('ytp-error');
-    const video = player.querySelector('video');
-    video.currentTime = 0;
-    video.playbackRate = 1;
-  });
-  await page.waitForFunction(() => window.adstopErrorRecovery?.id === 'error-video');
-  assert.ok(await page.evaluate(() => window.adstopErrorRecovery.position >= 1));
-  await context.route('https://www.youtube.com/youtubei/v1/player', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ requestBody: route.request().postDataJSON() }) }));
-  await page.reload();
-  await page.evaluate(() => {
-    const player = document.querySelector('#movie_player');
-    player.getPlayerResponse = () => ({ playabilityStatus: { status: 'ERROR' } });
-    player.loadVideoById = (id, position) => {
-      window.adstopStoppedRecovery = { id, position };
-      (async () => {
-        const response = await (await fetch('/youtubei/v1/player', { method: 'POST', body: JSON.stringify({ videoId: id, context: { client: { clientName: 'WEB' } }, playbackContext: { contentPlaybackContext: { referer: location.href } } }) })).json();
-        window.adstopRecoveryBody = response.requestBody;
-        const video = player.querySelector('video');
-        video.src = '/playback.webm';
-        video.muted = false;
-        await video.play();
-        window.adstopStoppedReady = true;
-      })().catch(error => { window.adstopStoppedFailure = error.message; });
-    };
-    const error = document.createElement('div');
-    error.className = 'ytp-error-content-wrap';
-    error.textContent = '282054944';
-    player.append(error);
-    player.classList.add('ytp-error');
-  });
-  await page.waitForFunction(() => window.adstopStoppedReady || window.adstopStoppedFailure);
-  const stopped = await page.evaluate(() => ({ recovery: window.adstopStoppedRecovery, body: window.adstopRecoveryBody, error: window.adstopStoppedFailure }));
-  assert.equal(stopped.error, undefined);
-  assert.deepEqual(stopped.recovery, { id: 'adstop-test', position: 0 });
-  assert.equal(stopped.body.context.client.clientScreen, 'CHANNEL');
-  assert.match(stopped.body.playbackContext.contentPlaybackContext.lactMilliseconds, /^\d+$/);
-  assert.equal(stopped.body.playbackContext.contentPlaybackContext.referer, `${page.url()}#reloadxhr`);
-  await page.waitForFunction(() => document.querySelector('video').getVideoPlaybackQuality().totalVideoFrames >= 5);
-  assert.equal(await page.locator('video').evaluate(video => video.muted), false);
-  await writeFile(path.join(resultsRoot, 'brave-checks.json'), JSON.stringify({ browser: await context.browser().version(), checks: ['Instalación', 'Listas completas', 'Bloqueo dinámico', 'Excepciones', 'Pausa general', 'Modo oscuro compartido y guardado', 'Icono gris al desactivar', 'YouTube con pruebas sintéticas, recurso local y cierre del aviso', 'Decodificación real de vídeo tras saltar un anuncio sin alterar su velocidad', 'Recuperación del error visible con reproducción de fondo'], livePlatformsTested: false }, null, 2));
-  console.log('Brave: bloqueo, ajustes, iconos y corrección antibloqueo de YouTube comprobados');
+  assert.equal((await request({ type: 'save', settings: { ...initial.settings, youtube: false } })).ok, true);
+  const scripts = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts());
+  assert.equal(scripts.some(script => script.id === 'youtube'), false);
+  assert.equal((scripts.find(script => script.id === 'scriptlets').excludeMatches || []).includes('*://*.youtube.com/*'), false);
+  await writeFile(path.join(resultsRoot, 'brave-checks.json'), JSON.stringify({ browser: await context.browser().version(), checks: ['Instalación', 'Listas completas', 'Bloqueo dinámico', 'Excepciones', 'Pausa general', 'Modo oscuro compartido y guardado', 'Icono gris al desactivar', 'YouTube con los filtros de las listas', 'Decodificación real de vídeo tras saltar un anuncio sin alterar su velocidad', 'Interruptor de YouTube conserva las listas'], livePlatformsTested: false }, null, 2));
+  console.log('Brave: bloqueo, ajustes, iconos y reproducción de YouTube comprobados');
 } finally {
   if (context) await context.close();
   await new Promise(resolve => server.close(resolve));

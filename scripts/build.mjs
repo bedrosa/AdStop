@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile, cp } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, cp, rm } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { build } from 'esbuild';
 import { FilterConverter, Filter, DNR_CONVERTER_VERSION } from '@adguard/dnr-converter';
@@ -104,7 +104,7 @@ for (const browser of ['chromium', 'firefox']) {
   await cp('vendor/LICENSE-twitch.txt', `${out}/licenses/Twitch-MIT.txt`);
   await cp('THIRD_PARTY_NOTICES.md', `${out}/licenses/THIRD_PARTY_NOTICES.md`);
   await cp('node_modules/@adguard/scriptlets/dist/redirect-files', `${out}/redirects`, { recursive: true });
-  await cp('src/redirects', `${out}/redirects`, { recursive: true });
+  await rm(`${out}/redirects/youtube-ad-status.js`, { force: true });
   await makeIcons(`${out}/icons`);
   const manifest = {
     manifest_version: 3,

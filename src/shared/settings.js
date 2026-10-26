@@ -73,9 +73,6 @@ export function exceptionDomains(settings) {
 export function settingsRules(settings) {
   let id = 1;
   const rules = [];
-  if (settings.enabled && settings.youtube) {
-    rules.push({ id: id++, priority: 100000, action: { type: 'redirect', redirect: { extensionPath: '/redirects/youtube-ad-status.js' } }, condition: { regexFilter: '^https?://static\\.doubleclick\\.net/instream/ad_status\\.js(?:\\?.*)?$', initiatorDomains: ['youtube.com', 'youtube-nocookie.com'], resourceTypes: ['script'] } });
-  }
   if (!settings.enabled) {
     rules.push({ id: id++, priority: 1000000000, action: { type: 'allowAllRequests' }, condition: { resourceTypes: ['main_frame', 'sub_frame'], urlFilter: '|http' } });
   }
