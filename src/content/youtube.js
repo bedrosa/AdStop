@@ -5,6 +5,7 @@ import { cleanPlayerResponse, isPlayerUrl, isAdblockFailure, rewritePlayerReques
   const requestUrl = Object.getOwnPropertyDescriptor(Request.prototype, 'url').get;
   let recovery = { videoId: '', attempts: 0, lastAttempt: 0, mode: '' };
   let frames;
+  let playbackError;
 
   let initial = cleanPlayerResponse(window.ytInitialPlayerResponse);
   const descriptor = Object.getOwnPropertyDescriptor(window, 'ytInitialPlayerResponse');
@@ -97,6 +98,7 @@ import { cleanPlayerResponse, isPlayerUrl, isAdblockFailure, rewritePlayerReques
     const position = video?.currentTime || response.playerConfig?.playbackStartConfig?.startSeconds || 0;
     player.loadVideoById(videoId, position);
     frames = undefined;
+    playbackError = undefined;
   }
 
   function skipAd() {
@@ -106,6 +108,7 @@ import { cleanPlayerResponse, isPlayerUrl, isAdblockFailure, rewritePlayerReques
     if (response?.videoDetails?.videoId && response.videoDetails.videoId !== recovery.videoId) {
       recovery = { videoId: response.videoDetails.videoId, attempts: 0, lastAttempt: 0, mode: '' };
       frames = undefined;
+      playbackError = undefined;
     }
     const message = document.querySelector('ytd-enforcement-message-view-model');
     if (message && !dismissed.has(message) && /ad.?block|bloqueador(?:es)? de anuncios/i.test(message.textContent)) {
@@ -128,9 +131,24 @@ import { cleanPlayerResponse, isPlayerUrl, isAdblockFailure, rewritePlayerReques
       const skip = player.querySelector('.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern');
       if (skip && !skip.disabled && skip.getClientRects().length) skip.click();
       frames = undefined;
+      playbackError = undefined;
       return;
     }
-    if (!video || video.paused || video.ended || video.seeking || document.visibilityState !== 'visible' || !video.videoWidth) {
+    if (!video || video.paused || video.ended || video.seeking || document.visibilityState !== 'visible') {
+      frames = undefined;
+      playbackError = undefined;
+      return;
+    }
+    const error = player.querySelector('.ytp-error-content-wrap, #error-screen');
+    if (player.classList.contains('ytp-error') && error?.getClientRects().length && /se ha producido un error|an error (?:has )?occurred/i.test(error.textContent)) {
+      if (!playbackError || playbackError.video !== video || playbackError.source !== video.currentSrc || video.currentTime < playbackError.time) {
+        playbackError = { video, source: video.currentSrc, time: video.currentTime, since: Date.now() };
+      } else if (Date.now() - playbackError.since >= 2000 && video.currentTime - playbackError.time >= 1) {
+        reloadPlayer(player, video, response, false);
+        return;
+      }
+    } else playbackError = undefined;
+    if (!video.videoWidth) {
       frames = undefined;
       return;
     }

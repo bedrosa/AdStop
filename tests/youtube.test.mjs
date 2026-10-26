@@ -6,11 +6,12 @@ import { readFile } from 'node:fs/promises';
 const source = (await readFile('src/shared/youtube.js', 'utf8')).replaceAll('export function ', 'function ') + (await readFile('src/content/youtube.js', 'utf8')).replace(/^import[^\n]+\n/, '');
 
 function fixture() {
-  const state = { now: 100000, rendered: 20, reloads: [], sent: [], showing: false };
+  const state = { now: 100000, rendered: 20, reloads: [], sent: [], showing: false, errorText: '', errorVisible: true };
   const video = { currentTime: 42, currentSrc: 'blob:contenido', videoWidth: 1280, paused: false, ended: false, seeking: false, muted: false, playbackRate: 1.25, duration: 120, getVideoPlaybackQuality: () => ({ totalVideoFrames: state.rendered, droppedVideoFrames: 0 }) };
   state.response = { videoDetails: { videoId: 'video-1' }, playabilityStatus: { status: 'OK' } };
   const skip = { disabled: false, getClientRects: () => [1], click: () => { state.showing = false; } };
-  const player = { querySelector: selector => selector === 'video' ? video : skip, classList: { contains: () => state.showing }, getPlayerResponse: () => state.response, loadVideoById: (...args) => state.reloads.push(args) };
+  const error = { get textContent() { return state.errorText; }, getClientRects: () => state.errorVisible ? [1] : [] };
+  const player = { querySelector: selector => selector === 'video' ? video : selector === '.ytp-error-content-wrap, #error-screen' ? error : skip, classList: { contains: name => name === 'ytp-error' ? !!state.errorText : state.showing }, getPlayerResponse: () => state.response, loadVideoById: (...args) => state.reloads.push(args) };
   const document = { visibilityState: 'visible', querySelector: selector => selector === '#movie_player, #player' ? player : null, addEventListener() {} };
   class Xhr {
     open(method, url) { this.method = method; this.url = url; }
@@ -69,6 +70,34 @@ test('no recarga una pausa, búsqueda, pestaña oculta, anuncio ni un vídeo que
     if (scenario === 'hidden') document.visibilityState = 'hidden';
     if (scenario === 'ad') state.showing = true;
     if (scenario === 'frames') state.rendered += 30;
+    state.tick();
+    assert.deepEqual(state.reloads, [], scenario);
+  }
+});
+
+test('recupera el error visible con audio que continúa aunque se sigan decodificando fotogramas', () => {
+  const { state, video } = fixture();
+  state.errorText = 'Se ha producido un error. Vuelve a intentarlo más tarde';
+  video.videoWidth = 0;
+  state.tick();
+  state.now += 2001;
+  video.currentTime += 2;
+  state.rendered += 60;
+  state.tick();
+  assert.deepEqual(state.reloads, [['video-1', 44]]);
+});
+
+test('el error genérico no provoca recargas si está oculto, pausado o sin reproducción de fondo', () => {
+  for (const scenario of ['hidden', 'paused', 'stopped', 'account']) {
+    const { state, video } = fixture();
+    state.errorText = 'Se ha producido un error';
+    state.tick();
+    state.now += 3000;
+    state.rendered += 30;
+    if (scenario !== 'stopped') video.currentTime += 3;
+    if (scenario === 'hidden') state.errorVisible = false;
+    if (scenario === 'paused') video.paused = true;
+    if (scenario === 'account') state.errorText = 'Inicia sesión para confirmar tu edad';
     state.tick();
     assert.deepEqual(state.reloads, [], scenario);
   }

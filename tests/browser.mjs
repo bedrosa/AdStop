@@ -335,6 +335,30 @@ try {
     await page.locator('video').evaluate(video => { video.pause(); video.removeAttribute('src'); video.load(); });
     await page.locator('#movie_player').evaluate(player => player.classList.remove('ad-showing'));
   });
+  await check('YouTube recupera el error visible mientras la reproducción continúa de fondo', async () => {
+    const broken = await context.newPage();
+    await broken.goto(`http://www.youtube.com:${port}/watch?v=error-video`);
+    await broken.bringToFront();
+    await broken.evaluate(async () => {
+      const player = document.querySelector('#movie_player');
+      player.getPlayerResponse = () => ({ videoDetails: { videoId: 'error-video' }, playabilityStatus: { status: 'OK' } });
+      player.loadVideoById = (id, position) => { window.adstopErrorRecovery = { id, position }; };
+      const error = document.createElement('div');
+      error.className = 'ytp-error-content-wrap';
+      error.textContent = 'Se ha producido un error. Vuelve a intentarlo más tarde';
+      player.append(error);
+      player.classList.add('ytp-error');
+      const video = player.querySelector('video');
+      video.src = '/playback.webm';
+      video.muted = true;
+      await video.play();
+    });
+    await broken.waitForFunction(() => window.adstopErrorRecovery?.id === 'error-video');
+    const recovery = await broken.evaluate(() => window.adstopErrorRecovery);
+    assert.ok(recovery.position >= 1, JSON.stringify(recovery));
+    assert.equal(await broken.locator('.ytp-error-content-wrap').isVisible(), true);
+    await broken.close();
+  });
   await check('YouTube reintenta el bloqueo y adapta las solicitudes reales del mismo vídeo', async () => {
     await page.evaluate(() => {
       const player = document.querySelector('#movie_player');
