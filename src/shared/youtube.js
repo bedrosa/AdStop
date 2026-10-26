@@ -16,8 +16,36 @@ export function cleanPlayerResponse(value) {
 export function isPlayerUrl(input, base) {
   try {
     const url = new URL(typeof input === 'string' ? input : input.url, base);
-    return /(^|\.)youtube\.com$/.test(url.hostname) && /^\/youtubei\/v1\/(player|next)(?:\/|$)/.test(url.pathname);
+    return /^https?:$/.test(url.protocol) && /(^|\.)youtube\.com$/.test(url.hostname) && /^\/youtubei\/v1\/(player|get_watch|next)\/?$/.test(url.pathname);
   } catch {
     return false;
+  }
+}
+
+export function isAdblockFailure(response) {
+  if (response?.playabilityStatus?.status !== 'UNPLAYABLE') return false;
+  const screen = response.playabilityStatus.errorScreen;
+  if (screen?.playerErrorMessageRenderer?.playerCaptchaViewModel) return false;
+  const runs = screen?.playerErrorMessageRenderer?.subreason?.runs || screen?.playerInterstitialRenderer?.content?.interstitialViewModel?.description?.commandRuns;
+  return Array.isArray(runs) && runs.some(run => {
+    const metadata = run.navigationEndpoint?.commandMetadata?.webCommandMetadata || run.onTap?.innertubeCommand?.commandMetadata?.webCommandMetadata;
+    return metadata?.webPageType === 'WEB_PAGE_TYPE_UNKNOWN' && metadata.url === 'https://support.google.com/youtube/answer/3037019';
+  });
+}
+
+export function rewritePlayerRequest(text, videoId, mode) {
+  if (!mode || typeof text !== 'string') return text;
+  try {
+    const body = JSON.parse(text);
+    const client = body.context?.client;
+    if (body.videoId !== videoId || client?.clientName !== 'WEB' || !body.playbackContext?.contentPlaybackContext) return text;
+    if (mode === 'channel') client.clientScreen = 'CHANNEL';
+    else if (mode === 'lactmilli') {
+      body.params = '8AUB';
+      body.playbackContext.contentPlaybackContext.lactMilliseconds = String(Date.now());
+    } else return text;
+    return JSON.stringify(body);
+  } catch {
+    return text;
   }
 }

@@ -101,7 +101,29 @@ try {
   assert.deepEqual(youtube.synthetic, youtube.parsed);
   assert.equal(youtube.probe, 1);
   await page.waitForFunction(() => window.adstopPlaybackResumed && !document.querySelector('ytd-enforcement-message-view-model'));
-  await writeFile(path.join(resultsRoot, 'brave-checks.json'), JSON.stringify({ browser: await context.browser().version(), checks: ['Instalación', 'Listas completas', 'Bloqueo dinámico', 'Excepciones', 'Pausa general', 'Modo oscuro compartido y guardado', 'Icono gris al desactivar', 'YouTube con pruebas sintéticas, recurso local y cierre del aviso'], livePlatformsTested: false }, null, 2));
+  await context.route('https://www.youtube.com/playback.webm', route => route.fulfill({ contentType: 'video/webm', path: 'tests/fixtures/playback.webm' }));
+  await page.bringToFront();
+  await page.evaluate(async () => {
+    const video = document.querySelector('video');
+    video.src = '/playback.webm';
+    video.loop = true;
+    video.muted = true;
+    video.playbackRate = 1.25;
+    const skip = document.createElement('button');
+    skip.className = 'ytp-ad-skip-button';
+    skip.textContent = 'Saltar';
+    skip.onclick = () => document.querySelector('#movie_player').classList.remove('ad-showing');
+    document.querySelector('#movie_player').append(skip);
+    document.querySelector('#movie_player').classList.add('ad-showing');
+    await video.play();
+  });
+  await page.waitForFunction(() => document.querySelector('video').getVideoPlaybackQuality().totalVideoFrames >= 5);
+  const frames = await page.locator('video').evaluate(video => video.getVideoPlaybackQuality().totalVideoFrames);
+  await page.waitForFunction(frames => document.querySelector('video').getVideoPlaybackQuality().totalVideoFrames >= frames + 5, frames);
+  await page.waitForFunction(() => !document.querySelector('#movie_player').classList.contains('ad-showing'));
+  assert.equal(await page.locator('video').evaluate(video => video.playbackRate), 1.25);
+  assert.equal(await page.locator('#movie_player').evaluate(player => player.classList.contains('ad-showing')), false);
+  await writeFile(path.join(resultsRoot, 'brave-checks.json'), JSON.stringify({ browser: await context.browser().version(), checks: ['Instalación', 'Listas completas', 'Bloqueo dinámico', 'Excepciones', 'Pausa general', 'Modo oscuro compartido y guardado', 'Icono gris al desactivar', 'YouTube con pruebas sintéticas, recurso local y cierre del aviso', 'Decodificación real de vídeo tras saltar un anuncio sin alterar su velocidad'], livePlatformsTested: false }, null, 2));
   console.log('Brave: bloqueo, ajustes, iconos y corrección antibloqueo de YouTube comprobados');
 } finally {
   if (context) await context.close();

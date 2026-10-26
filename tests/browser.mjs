@@ -9,11 +9,18 @@ await mkdir(resultsRoot, { recursive: true });
 const profile = await mkdtemp(path.join(resultsRoot, 'chromium-'));
 const requests = [];
 const checks = [];
-const server = createServer((request, response) => {
+const server = createServer(async (request, response) => {
   requests.push({ host: request.headers.host, url: request.url });
   if (request.url === '/favicon.ico') { response.writeHead(204).end(); return; }
+  if (request.url === '/playback.webm') {
+    response.writeHead(200, { 'content-type': 'video/webm' }).end(await readFile('tests/fixtures/playback.webm'));
+    return;
+  }
   if (request.url.startsWith('/youtubei/v1/')) {
-    response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ adPlacements: [{ ad: true }], adSlots: [1], playerAds: [1], auxiliaryUi: { messageRenderers: { bkaEnforcementMessageViewModel: { title: 'Aviso antibloqueo' }, notificationRenderer: { title: 'Notificación' } } }, videoDetails: { title: 'Contenido de prueba' }, streamingData: { formats: [] } }));
+    const chunks = [];
+    for await (const chunk of request) chunks.push(chunk);
+    const body = Buffer.concat(chunks).toString();
+    response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ requestBody: body ? JSON.parse(body) : null, adPlacements: [{ ad: true }], adSlots: [1], playerAds: [1], auxiliaryUi: { messageRenderers: { bkaEnforcementMessageViewModel: { title: 'Aviso antibloqueo' }, notificationRenderer: { title: 'Notificación' } } }, videoDetails: { title: 'Contenido de prueba' }, streamingData: { formats: [] } }));
     return;
   }
   if (request.url.startsWith('/resource.js')) {
@@ -217,6 +224,7 @@ try {
     assert.equal(await page.evaluate(() => window.ytInitialPlayerResponse.adPlacements), undefined);
     const data = await page.evaluate(async () => {
       const fetched = await (await fetch('/youtubei/v1/player')).json();
+      const watch = await (await fetch('/youtubei/v1/get_watch?prettyPrint=false')).json();
       const xhr = await new Promise(resolve => {
         const request = new XMLHttpRequest();
         request.open('GET', '/youtubei/v1/player');
@@ -224,7 +232,7 @@ try {
         request.onload = () => resolve(request.response);
         request.send();
       });
-      return { fetched, xhr };
+      return { fetched, watch, xhr };
     });
     for (const [transport, response] of Object.entries(data)) {
       assert.equal(response.adPlacements, undefined, `${transport}: ${JSON.stringify(response)}`);
@@ -283,19 +291,81 @@ try {
     await page.waitForFunction(() => window.adstopPlaybackResumed && !document.querySelector('ytd-enforcement-message-view-model'));
     assert.equal(await page.locator('#notification-dialog').isVisible(), true);
   });
-  await check('YouTube salta anuncios y restaura velocidad y audio', async () => {
+  await check('YouTube salta anuncios sin alterar la velocidad ni el audio del contenido', async () => {
     await page.evaluate(() => {
       const video = document.querySelector('video');
       Object.defineProperty(video, 'duration', { configurable: true, value: 30 });
       video.playbackRate = 1.25;
       video.muted = false;
       document.querySelector('#movie_player').classList.add('ad-showing');
-      document.querySelector('button').onclick = () => { window.adstopSkipped = true; };
+      document.querySelector('button').onclick = () => {
+        window.adstopSkipped = true;
+        document.querySelector('#movie_player').classList.remove('ad-showing');
+      };
     });
-    await page.waitForFunction(() => window.adstopSkipped === true && document.querySelector('video').muted);
-    assert.equal(await page.locator('video').evaluate(video => video.playbackRate), 16);
+    await page.waitForFunction(() => window.adstopSkipped === true);
+    assert.equal(await page.locator('video').evaluate(video => video.playbackRate), 1.25);
+    assert.equal(await page.locator('video').evaluate(video => video.muted), false);
+    await page.locator('video').evaluate(video => { delete video.duration; });
+  });
+  await check('YouTube reproduce fotogramas reales después del salto y de cambiar de vídeo', async () => {
+    await page.bringToFront();
+    await page.evaluate(async () => {
+      const video = document.querySelector('video');
+      video.src = '/playback.webm';
+      video.loop = true;
+      video.muted = true;
+      await video.play();
+    });
+    await page.waitForFunction(() => document.querySelector('video').getVideoPlaybackQuality().totalVideoFrames >= 5);
+    const before = await page.locator('video').evaluate(video => video.getVideoPlaybackQuality().totalVideoFrames);
+    await page.waitForFunction(before => document.querySelector('video').getVideoPlaybackQuality().totalVideoFrames >= before + 5, before);
+    await page.evaluate(async () => {
+      const old = document.querySelector('video');
+      const next = old.cloneNode();
+      old.pause();
+      old.replaceWith(next);
+      next.muted = true;
+      next.playbackRate = 1;
+      document.querySelector('#movie_player').classList.add('ad-showing');
+      await next.play();
+    });
+    await page.waitForFunction(() => document.querySelector('video').getVideoPlaybackQuality().totalVideoFrames >= 5);
+    assert.equal(await page.locator('video').evaluate(video => video.playbackRate), 1);
+    await page.locator('video').evaluate(video => { video.pause(); video.removeAttribute('src'); video.load(); });
     await page.locator('#movie_player').evaluate(player => player.classList.remove('ad-showing'));
-    await page.waitForFunction(() => !document.querySelector('video').muted && document.querySelector('video').playbackRate === 1.25);
+  });
+  await check('YouTube reintenta el bloqueo y adapta las solicitudes reales del mismo vídeo', async () => {
+    await page.evaluate(() => {
+      const player = document.querySelector('#movie_player');
+      player.getPlayerResponse = () => ({ videoDetails: { videoId: 'video-1' }, playabilityStatus: { status: 'UNPLAYABLE', errorScreen: { playerErrorMessageRenderer: { subreason: { runs: [{ navigationEndpoint: { commandMetadata: { webCommandMetadata: { webPageType: 'WEB_PAGE_TYPE_UNKNOWN', url: 'https://support.google.com/youtube/answer/3037019' } } } }] } } } } });
+      player.loadVideoById = (id, position) => { window.adstopReloadedVideo = { id, position }; };
+    });
+    await page.waitForFunction(() => window.adstopReloadedVideo?.id === 'video-1');
+    const data = await page.evaluate(async () => {
+      const body = JSON.stringify({ videoId: 'video-1', context: { client: { clientName: 'WEB' } }, playbackContext: { contentPlaybackContext: { signatureTimestamp: 123 } } });
+      const fetchResponse = await (await fetch(new Request(`${location.origin}/youtubei/v1/player`, { method: 'POST', body }))).json();
+      const watch = await (await fetch('/youtubei/v1/get_watch', { method: 'POST', body })).json();
+      const xhr = await new Promise(resolve => {
+        const request = new XMLHttpRequest();
+        request.open('POST', '/youtubei/v1/player');
+        request.responseType = 'json';
+        request.onload = () => resolve(request.response);
+        request.send(body);
+      });
+      const other = await (await fetch('/youtubei/v1/player', { method: 'POST', body: body.replace('video-1', 'video-2') })).json();
+      const license = await (await fetch('/youtubei/v1/player/get_drm_license', { method: 'POST', body })).json();
+      return { fetchResponse, watch, xhr, other, license };
+    });
+    for (const response of [data.fetchResponse, data.watch, data.xhr]) {
+      assert.equal(response.requestBody.context.client.clientScreen, 'CHANNEL');
+      assert.equal(response.requestBody.playbackContext.contentPlaybackContext.signatureTimestamp, 123);
+      assert.equal(response.adPlacements, undefined);
+    }
+    assert.equal(data.other.requestBody.context.client.clientScreen, undefined);
+    assert.equal(data.license.requestBody.context.client.clientScreen, undefined);
+    assert.deepEqual(data.license.adSlots, [1]);
+    await page.evaluate(() => { delete document.querySelector('#movie_player').getPlayerResponse; });
   });
   await check('el módulo de YouTube evita duplicar scriptlets y respeta su interruptor', async () => {
     let scripts = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts());
