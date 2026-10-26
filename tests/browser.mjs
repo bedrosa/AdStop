@@ -33,7 +33,7 @@ const server = createServer(async (request, response) => {
   }
   const isVideo = /youtube\.com|twitch\.tv/.test(request.headers.host);
   response.writeHead(200, { 'content-type': 'text/html', ...(isVideo ? {} : { 'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'none'; connect-src *" }) });
-  response.end('<!doctype html><html lang="es"><head><title>AdStop Fixture</title><script src="/fixture.js"></script></head><body><h1>Contenido de prueba</h1><div class="adsbygoogle" id="ad">Publicidad</div><div id="personal">Elemento personal</div><div id="movie_player"><video></video><button class="ytp-ad-skip-button">Saltar</button></div></body></html>');
+  response.end('<!doctype html><html lang="es"><head><title>AdStop Fixture</title><script src="/fixture.js"></script></head><body><h1>Contenido de prueba</h1><div class="adsbygoogle" id="ad">Publicidad</div><ytd-ad-slot-renderer id="yt-ad">Publicidad</ytd-ad-slot-renderer><div id="personal">Elemento personal</div><div id="movie_player"><video></video><button class="ytp-ad-skip-button">Saltar</button></div></body></html>');
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const port = server.address().port;
@@ -217,79 +217,44 @@ try {
     await page.goto(`http://www.adstop.test:${port}/`);
     assert.equal(await page.evaluate(() => window.ad_blocker), undefined);
   });
-  await check('YouTube limpia respuesta inicial, fetch y XMLHttpRequest', async () => {
-    await page.goto(`http://www.youtube.com:${port}/watch?v=adstop-test`);
-    await page.waitForFunction(() => window.adstopContentLoaded === true);
-    assert.equal(await page.evaluate(() => window.__adstopYoutube), undefined);
-    assert.equal(await page.evaluate(() => window.ytInitialPlayerResponse.adPlacements), undefined);
-    const data = await page.evaluate(async () => {
-      const fetched = await (await fetch('/youtubei/v1/player')).json();
-      const watch = await (await fetch('/youtubei/v1/get_watch?prettyPrint=false')).json();
-      const xhr = await new Promise(resolve => {
-        const request = new XMLHttpRequest();
-        request.open('GET', '/youtubei/v1/player');
-        request.responseType = 'json';
-        request.onload = () => resolve(request.response);
-        request.send();
-      });
-      return { fetched, watch, xhr };
-    });
-    for (const [transport, response] of Object.entries(data)) {
-      assert.equal(response.adPlacements, undefined, `${transport}: ${JSON.stringify(response)}`);
-      assert.equal(response.playerAds, undefined, `${transport}: ${JSON.stringify(response)}`);
-      assert.equal(response.videoDetails.title, 'Contenido de prueba');
-      assert.equal(response.auxiliaryUi.messageRenderers.bkaEnforcementMessageViewModel, undefined);
-      assert.equal(response.auxiliaryUi.messageRenderers.notificationRenderer.title, 'Notificación');
+  await check('YouTube mantiene las listas y el bloqueo de red con su módulo activo o desactivado', async () => {
+    const originalRules = await worker.evaluate(() => chrome.declarativeNetRequest.getDynamicRules());
+    for (const enabled of [false, true]) {
+      assert.equal((await save({ ...initial.settings, youtube: enabled })).ok, true);
+      const scripts = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts());
+      assert.equal(scripts.some(script => script.id === 'youtube'), enabled);
+      assert.equal((scripts.find(script => script.id === 'scriptlets').excludeMatches || []).includes('*://*.youtube.com/*'), false);
+      assert.deepEqual(await worker.evaluate(() => chrome.declarativeNetRequest.getDynamicRules()), originalRules);
+      await page.goto('http://www.youtube.com:' + port + '/watch?v=adstop-test');
+      await page.waitForFunction(() => window.adstopContentLoaded === true);
+      await page.waitForFunction(() => getComputedStyle(document.querySelector('#yt-ad')).display === 'none');
+      assert.equal(await tryRequest(), false);
     }
   });
-  await check('YouTube conserva las pruebas de JSON y fetch sintéticos sin alterar sus datos', async () => {
+  await check('el módulo de YouTube conserva las respuestas nativas, sus clones y los datos sintéticos', async () => {
+    assert.equal((await save({ ...initial.settings, scriptlets: false })).ok, true);
+    await page.reload();
     const result = await page.evaluate(async () => {
       const text = '{"adPlacements":[1],"adSlots":[2],"playerAds":[3],"number":4}';
       const parsed = JSON.parse(text, (key, value) => key === 'number' ? value + 1 : value);
-      const synthetic = await new Response(text).json();
-      const request = new Request(`data:application/json,${encodeURIComponent(text)}`);
-      Object.defineProperty(request, 'url', { value: `${location.origin}/youtubei/v1/player` });
+      const request = new Request('data:application/json,' + encodeURIComponent(text));
+      Object.defineProperty(request, 'url', { value: location.origin + '/youtubei/v1/player' });
       const bait = await (await fetch(request)).json();
-      return { parsed, synthetic, bait, nativeParse: JSON.parse.toString().includes('[native code]'), nativeFetch: Function.prototype.toString.call(fetch).includes('[native code]'), nativeXhr: Function.prototype.toString.call(XMLHttpRequest.prototype.open).includes('[native code]') };
+      const response = await fetch('/youtubei/v1/player');
+      const clone = response.clone();
+      const nativeUrl = Object.getOwnPropertyDescriptor(Response.prototype, 'url').get;
+      return { parsed, bait, responseUrl: response.url, cloneUrl: clone.url, internalUrl: Reflect.apply(nativeUrl, response, []), body: await clone.json(), initial: window.ytInitialPlayerResponse, descriptor: !!Object.getOwnPropertyDescriptor(window, 'ytInitialPlayerResponse').get, nativeParse: JSON.parse.toString().includes('[native code]') };
     });
     assert.deepEqual(result.parsed, { adPlacements: [1], adSlots: [2], playerAds: [3], number: 5 });
-    for (const value of [result.synthetic, result.bait]) assert.deepEqual(value, { adPlacements: [1], adSlots: [2], playerAds: [3], number: 4 });
+    assert.deepEqual(result.bait, { adPlacements: [1], adSlots: [2], playerAds: [3], number: 4 });
+    assert.equal(result.responseUrl, 'http://www.youtube.com:' + port + '/youtubei/v1/player');
+    assert.equal(result.cloneUrl, result.responseUrl);
+    assert.equal(result.internalUrl, result.responseUrl);
+    assert.deepEqual(result.body.adSlots, [1]);
+    assert.equal(result.body.auxiliaryUi.messageRenderers.bkaEnforcementMessageViewModel.title, 'Aviso antibloqueo');
+    assert.deepEqual(result.initial.adSlots, [2]);
+    assert.equal(result.descriptor, false);
     assert.equal(result.nativeParse, true);
-    assert.equal(result.nativeFetch, true);
-    assert.equal(result.nativeXhr, true);
-  });
-  await check('YouTube resuelve la comprobación publicitaria con un script local', async () => {
-    const loaded = await page.evaluate(() => new Promise(resolve => {
-      const script = document.createElement('script');
-      script.src = 'http://static.doubleclick.net/instream/ad_status.js';
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.head.append(script);
-    }));
-    assert.equal(loaded, true);
-    assert.equal(await page.evaluate(() => window.google_ad_status), 1);
-    assert.equal(requests.some(request => request.host.startsWith('static.doubleclick.net')), false);
-  });
-  await check('YouTube cierra el aviso antibloqueo y reanuda el reproductor sin cerrar otros diálogos', async () => {
-    await page.evaluate(() => {
-      const player = document.querySelector('#movie_player');
-      player.playVideo = () => { window.adstopPlaybackResumed = true; };
-      const unrelated = document.createElement('div');
-      unrelated.id = 'notification-dialog';
-      unrelated.setAttribute('role', 'dialog');
-      unrelated.textContent = 'Notificaciones';
-      document.body.append(unrelated);
-      const message = document.createElement('ytd-enforcement-message-view-model');
-      message.textContent = 'Los bloqueadores de anuncios no se permiten en YouTube';
-      const close = document.createElement('button');
-      close.id = 'dismiss-button';
-      close.textContent = 'Cerrar';
-      close.onclick = () => { message.remove(); };
-      message.append(close);
-      document.body.append(message);
-    });
-    await page.waitForFunction(() => window.adstopPlaybackResumed && !document.querySelector('ytd-enforcement-message-view-model'));
-    assert.equal(await page.locator('#notification-dialog').isVisible(), true);
   });
   await check('YouTube salta anuncios sin alterar la velocidad ni el audio del contenido', async () => {
     await page.evaluate(() => {
@@ -335,127 +300,31 @@ try {
     await page.locator('video').evaluate(video => { video.pause(); video.removeAttribute('src'); video.load(); });
     await page.locator('#movie_player').evaluate(player => player.classList.remove('ad-showing'));
   });
-  await check('YouTube recupera el error visible mientras la reproducción continúa de fondo', async () => {
-    for (const modern of [false, true]) {
-      const broken = await context.newPage();
-      await broken.goto(`http://www.youtube.com:${port}/watch?v=error-video`);
-      await broken.bringToFront();
-      await broken.evaluate(async modern => {
-        const player = document.querySelector('#movie_player');
-        player.getPlayerResponse = () => ({ videoDetails: { videoId: 'error-video' }, playabilityStatus: { status: 'OK' } });
-        player.loadVideoById = (id, position) => { window.adstopErrorRecovery = { id, position }; };
-        const error = document.createElement(modern ? 'yt-playability-error-supported-renderers' : 'div');
-        if (modern) {
-          error.id = 'error-screen';
-          const watch = document.createElement('ytd-watch-flexy');
-          watch.append(error);
-          document.body.append(watch);
-        } else {
-          error.className = 'ytp-error-content-wrap';
-          player.append(error);
-          player.classList.add('ytp-error');
-        }
-        error.textContent = 'Se ha producido un problema. Vuelve a intentarlo más tarde. 282054944';
-        const video = player.querySelector('video');
-        video.src = '/playback.webm';
-        video.muted = true;
-        await video.play();
-      }, modern);
-      await broken.waitForFunction(() => window.adstopErrorRecovery?.id === 'error-video');
-      const recovery = await broken.evaluate(() => window.adstopErrorRecovery);
-      assert.ok(recovery.position >= 1, JSON.stringify(recovery));
-      assert.equal(await broken.locator(modern ? '#error-screen' : '.ytp-error-content-wrap').isVisible(), true);
-      await broken.close();
-    }
-  });
-  await check('YouTube reintenta el bloqueo y adapta las solicitudes reales del mismo vídeo', async () => {
+  await check('el error 282054944 no provoca reintentos ni cambios del contexto de reproducción', async () => {
     await page.evaluate(() => {
       const player = document.querySelector('#movie_player');
-      player.getPlayerResponse = () => ({ videoDetails: { videoId: 'video-1' }, playabilityStatus: { status: 'UNPLAYABLE', errorScreen: { playerErrorMessageRenderer: { subreason: { runs: [{ navigationEndpoint: { commandMetadata: { webCommandMetadata: { webPageType: 'WEB_PAGE_TYPE_UNKNOWN', url: 'https://support.google.com/youtube/answer/3037019' } } } }] } } } } });
-      player.loadVideoById = (id, position) => { window.adstopReloadedVideo = { id, position }; };
+      window.adstopReloads = 0;
+      player.loadVideoById = () => { window.adstopReloads++; };
+      window.adstopPlayerError = { playabilityStatus: { status: 'UNPLAYABLE' } };
+      player.getPlayerResponse = () => window.adstopPlayerError;
+      const error = document.createElement('div');
+      error.className = 'ytp-error-content-wrap';
+      error.textContent = '282054944';
+      player.append(error);
+      player.classList.add('ytp-error');
     });
-    await page.waitForFunction(() => window.adstopReloadedVideo?.id === 'video-1');
-    const data = await page.evaluate(async () => {
-      const body = JSON.stringify({ videoId: 'video-1', context: { client: { clientName: 'WEB' } }, playbackContext: { contentPlaybackContext: { signatureTimestamp: 123 } } });
-      const fetchResponse = await (await fetch(new Request(`${location.origin}/youtubei/v1/player`, { method: 'POST', body }))).json();
-      const watch = await (await fetch('/youtubei/v1/get_watch', { method: 'POST', body })).json();
-      const xhr = await new Promise(resolve => {
-        const request = new XMLHttpRequest();
-        request.open('POST', '/youtubei/v1/player');
-        request.responseType = 'json';
-        request.onload = () => resolve(request.response);
-        request.send(body);
-      });
-      const other = await (await fetch('/youtubei/v1/player', { method: 'POST', body: body.replace('video-1', 'video-2') })).json();
-      const license = await (await fetch('/youtubei/v1/player/get_drm_license', { method: 'POST', body })).json();
-      return { fetchResponse, watch, xhr, other, license };
+    await page.waitForTimeout(2300);
+    const result = await page.evaluate(async () => {
+      const original = { videoId: 'adstop-test', context: { client: { clientName: 'WEB', clientScreen: 'WATCH' } }, playbackContext: { contentPlaybackContext: { referer: location.href } } };
+      const response = await (await fetch('/youtubei/v1/player', { method: 'POST', body: JSON.stringify(original) })).json();
+      return { reloads: window.adstopReloads, status: window.adstopPlayerError.playabilityStatus.status, original, received: response.requestBody };
     });
-    for (const response of [data.fetchResponse, data.watch, data.xhr]) {
-      assert.equal(response.requestBody.context.client.clientScreen, 'CHANNEL');
-      assert.equal(response.requestBody.playbackContext.contentPlaybackContext.signatureTimestamp, 123);
-      assert.equal(response.adPlacements, undefined);
-    }
-    assert.equal(data.other.requestBody.context.client.clientScreen, undefined);
-    assert.equal(data.license.requestBody.context.client.clientScreen, undefined);
-    assert.deepEqual(data.license.adSlots, [1]);
-    await page.evaluate(() => { delete document.querySelector('#movie_player').getPlayerResponse; });
-  });
-  await check('YouTube recupera el 282054944 detenido, sin metadatos ni reproducción de fondo', async () => {
-    for (const modern of [false, true]) {
-      const stopped = await context.newPage();
-      await stopped.goto(`http://www.youtube.com:${port}/watch?v=stopped-video`);
-      await stopped.bringToFront();
-      await stopped.evaluate(modern => {
-        const player = document.querySelector('#movie_player');
-        player.getPlayerResponse = () => ({ playabilityStatus: { status: 'ERROR' } });
-        if (modern) player.querySelector('video').remove();
-        player.loadVideoById = (id, position) => {
-          window.adstopStoppedRecovery = { id, position };
-          (async () => {
-            const response = await (await fetch('/youtubei/v1/player', { method: 'POST', body: JSON.stringify({ videoId: id, context: { client: { clientName: 'WEB' } }, playbackContext: { contentPlaybackContext: { referer: location.href } } }) })).json();
-            window.adstopRecoveryBody = response.requestBody;
-            const video = player.querySelector('video') || player.appendChild(document.createElement('video'));
-            video.src = '/playback.webm';
-            video.muted = false;
-            await video.play();
-            document.querySelector('.ytp-error-content-wrap, #error-screen').remove();
-            player.classList.remove('ytp-error');
-            window.adstopStoppedReady = true;
-          })().catch(error => { window.adstopStoppedFailure = error.message; });
-        };
-        const error = document.createElement(modern ? 'yt-playability-error-supported-renderers' : 'div');
-        error.textContent = 'Se ha producido un error. Vuelve a intentarlo más tarde. 282054944';
-        if (modern) {
-          error.id = 'error-screen';
-          const watch = document.createElement('ytd-watch-flexy');
-          watch.append(error);
-          document.body.append(watch);
-        } else {
-          error.className = 'ytp-error-content-wrap';
-          player.append(error);
-          player.classList.add('ytp-error');
-        }
-      }, modern);
-      await stopped.waitForFunction(() => window.adstopStoppedReady || window.adstopStoppedFailure);
-      const result = await stopped.evaluate(() => ({ recovery: window.adstopStoppedRecovery, body: window.adstopRecoveryBody, error: window.adstopStoppedFailure }));
-      assert.equal(result.error, undefined);
-      assert.deepEqual(result.recovery, { id: 'stopped-video', position: 0 });
-      assert.equal(result.body.context.client.clientScreen, 'CHANNEL');
-      assert.match(result.body.playbackContext.contentPlaybackContext.lactMilliseconds, /^\d+$/);
-      assert.equal(result.body.playbackContext.contentPlaybackContext.referer, `${stopped.url()}#reloadxhr`);
-      await stopped.waitForFunction(() => document.querySelector('video').getVideoPlaybackQuality().totalVideoFrames >= 5);
-      assert.equal(await stopped.locator('video').evaluate(video => video.muted), false);
-      await stopped.close();
-    }
-  });
-  await check('el módulo de YouTube evita duplicar scriptlets y respeta su interruptor', async () => {
-    let scripts = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts());
-    assert.ok(scripts.find(script => script.id === 'scriptlets').excludeMatches.includes('*://*.youtube.com/*'));
-    assert.equal((await save({ ...initial.settings, youtube: false })).ok, true);
-    scripts = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts());
-    assert.equal(scripts.some(script => script.id === 'youtube'), false);
-    assert.equal((scripts.find(script => script.id === 'scriptlets').excludeMatches || []).includes('*://*.youtube.com/*'), false);
+    assert.equal(result.reloads, 0);
+    assert.equal(result.status, 'UNPLAYABLE');
+    assert.deepEqual(result.received, result.original);
+    assert.equal(await page.locator('.ytp-error-content-wrap').isVisible(), true);
     assert.equal((await save(initial.settings)).ok, true);
+    await page.reload();
   });
   await check('el módulo de Twitch se instala al inicio y puede desactivarse', async () => {
     await page.goto(`http://www.twitch.tv:${port}/adstop-test`);

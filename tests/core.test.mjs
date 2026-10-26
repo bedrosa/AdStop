@@ -4,7 +4,6 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { defaults, normalizeDomain, settingsRules, validateSettings, siteEnabled } from '../src/shared/settings.js';
 import { matchesScope, selectCosmetic } from '../src/shared/cosmetic.js';
-import { cleanPlayerResponse, isPlayerUrl, isAdblockFailure, rewritePlayerRequest } from '../src/shared/youtube.js';
 import { parseLists, preprocess, splitRules } from '../scripts/filter-tools.mjs';
 import { netflix } from '../src/shared/netflix.js';
 
@@ -102,81 +101,9 @@ test('conserva todas las excepciones de red en el conjunto base', () => {
   assert.deepEqual(extended.map(rule => rule.id), [2, 3]);
 });
 
-test('YouTube conserva el contenido y retira solo las claves publicitarias previstas', () => {
-  const value = { adPlacements: [1], adSlots: [2], playerAds: [3], streamingData: { url: 'contenido' }, videoDetails: { title: 'Título' }, response: { playerResponse: { adPlacements: [4], videoDetails: { title: 'Otro' } } } };
-  cleanPlayerResponse(value);
-  assert.equal(value.adPlacements, undefined);
-  assert.equal(value.response.playerResponse.adPlacements, undefined);
-  assert.equal(value.streamingData.url, 'contenido');
-  assert.equal(value.videoDetails.title, 'Título');
-  assert.equal(isPlayerUrl('/youtubei/v1/player?key=uno', 'https://www.youtube.com'), true);
-  assert.equal(isPlayerUrl('https://falsoyoutube.com/youtubei/v1/player', 'https://www.youtube.com'), false);
-  assert.equal(isPlayerUrl('/youtubei/v1/player_settings', 'https://www.youtube.com'), false);
-  assert.equal(isPlayerUrl('/youtubei/v1/get_watch?prettyPrint=false', 'https://www.youtube.com'), true);
-  assert.equal(isPlayerUrl('/youtubei/v1/player/get_drm_license', 'https://www.youtube.com'), false);
-  assert.equal(isPlayerUrl('data:application/json,{}', 'https://www.youtube.com'), false);
-});
-
-test('la recuperación de YouTube distingue el bloqueo de los errores de cuenta y los captchas', () => {
-  const response = { playabilityStatus: { status: 'UNPLAYABLE', errorScreen: { playerErrorMessageRenderer: { subreason: { runs: [{ navigationEndpoint: { commandMetadata: { webCommandMetadata: { webPageType: 'WEB_PAGE_TYPE_UNKNOWN', url: 'https://support.google.com/youtube/answer/3037019' } } } }] } } } } };
-  assert.equal(isAdblockFailure(response), true);
-  for (const status of ['OK', 'LOGIN_REQUIRED', 'AGE_CHECK_REQUIRED', 'ERROR']) assert.equal(isAdblockFailure({ ...response, playabilityStatus: { ...response.playabilityStatus, status } }), false);
-  response.playabilityStatus.errorScreen.playerErrorMessageRenderer.playerCaptchaViewModel = {};
-  assert.equal(isAdblockFailure(response), false);
-  delete response.playabilityStatus.errorScreen.playerErrorMessageRenderer.playerCaptchaViewModel;
-  response.playabilityStatus.errorScreen.playerErrorMessageRenderer.subreason.runs[0].navigationEndpoint.commandMetadata.webCommandMetadata.url = 'https://example.com/3037019';
-  assert.equal(isAdblockFailure(response), false);
-});
-
-test('los reintentos modifican solo el cuerpo del vídeo afectado y conservan el resto del contexto', () => {
-  const body = { videoId: 'video-1', context: { client: { clientName: 'WEB', clientScreen: 'WATCH', userAgent: 'Navegador' }, user: { lockedSafetyMode: true } }, playbackContext: { contentPlaybackContext: { signatureTimestamp: 12345 } }, attestationRequest: { token: 'token' } };
-  const text = JSON.stringify(body);
-  assert.equal(rewritePlayerRequest(text, 'video-1', ''), text);
-  assert.equal(rewritePlayerRequest(text, 'otro-video', 'channel'), text);
-  assert.equal(rewritePlayerRequest('{', 'video-1', 'channel'), '{');
-  const channel = JSON.parse(rewritePlayerRequest(text, 'video-1', 'channel'));
-  assert.equal(channel.context.client.clientScreen, 'CHANNEL');
-  assert.match(channel.playbackContext.contentPlaybackContext.lactMilliseconds, /^\d+$/);
-  assert.deepEqual(channel, { ...body, context: { ...body.context, client: { ...body.context.client, clientScreen: 'CHANNEL' } }, playbackContext: { contentPlaybackContext: { signatureTimestamp: 12345, lactMilliseconds: channel.playbackContext.contentPlaybackContext.lactMilliseconds } } });
-  const second = JSON.parse(rewritePlayerRequest(text, 'video-1', 'lactmilli'));
-  assert.equal(second.params, '8AUB');
-  assert.match(second.playbackContext.contentPlaybackContext.lactMilliseconds, /^\d+$/);
-  assert.equal(second.playbackContext.contentPlaybackContext.signatureTimestamp, 12345);
-  assert.equal(body.context.client.clientScreen, 'WATCH');
-  assert.equal(rewritePlayerRequest(JSON.stringify({ ...body, context: { client: { clientName: 'WEB_REMIX' } } }), 'video-1', 'channel'), JSON.stringify({ ...body, context: { client: { clientName: 'WEB_REMIX' } } }));
-});
-
-test('los reintentos identifican la recarga sin duplicar el marcador ni modificar el contexto original', () => {
-  const body = { videoId: 'video-1', context: { client: { clientName: 'WEB' } }, playbackContext: { contentPlaybackContext: { referer: 'https://www.youtube.com/watch?v=video-1', signatureTimestamp: 123 } } };
-  const first = rewritePlayerRequest(JSON.stringify(body), 'video-1', 'channel');
-  const second = JSON.parse(rewritePlayerRequest(first, 'video-1', 'lactmilli'));
-  assert.equal(second.playbackContext.contentPlaybackContext.referer, 'https://www.youtube.com/watch?v=video-1#reloadxhr');
-  assert.equal(second.playbackContext.contentPlaybackContext.signatureTimestamp, 123);
-  assert.equal(body.playbackContext.contentPlaybackContext.referer, 'https://www.youtube.com/watch?v=video-1');
-  assert.equal(second.params, '8AUB');
-});
-
-test('YouTube retira solo el aviso antibloqueo del reproductor y conserva otros mensajes y errores', () => {
-  const response = { auxiliaryUi: { messageRenderers: { bkaEnforcementMessageViewModel: { title: 'Aviso' }, notificationRenderer: { title: 'Notificación' } } }, playabilityStatus: { status: 'LOGIN_REQUIRED', errorScreen: { playerErrorMessageRenderer: { reason: 'Inicia sesión' } } } };
-  cleanPlayerResponse(response);
-  assert.equal(response.auxiliaryUi.messageRenderers.bkaEnforcementMessageViewModel, undefined);
-  assert.equal(response.auxiliaryUi.messageRenderers.notificationRenderer.title, 'Notificación');
-  assert.equal(response.playabilityStatus.status, 'LOGIN_REQUIRED');
-  assert.equal(response.playabilityStatus.errorScreen.playerErrorMessageRenderer.reason, 'Inicia sesión');
-});
-
-test('la comprobación publicitaria de YouTube usa un recurso local limitado al módulo activo', () => {
-  const rules = settingsRules(defaults);
-  const probe = rules.find(rule => rule.action.redirect?.extensionPath === '/redirects/youtube-ad-status.js');
-  assert.ok(probe);
-  assert.deepEqual(probe.condition.resourceTypes, ['script']);
-  assert.deepEqual(probe.condition.initiatorDomains, ['youtube.com', 'youtube-nocookie.com']);
-  const pattern = new RegExp(probe.condition.regexFilter);
-  assert.equal(pattern.test('https://static.doubleclick.net/instream/ad_status.js?test=1'), true);
-  assert.equal(pattern.test('https://static.doubleclick.net/instream/anuncio.js'), false);
-  assert.equal(pattern.test('https://falsostatic.doubleclick.net/instream/ad_status.js'), false);
-  assert.equal(settingsRules({ ...defaults, youtube: false }).some(rule => rule.action.redirect), false);
-  assert.equal(settingsRules({ ...defaults, enabled: false }).some(rule => rule.action.redirect), false);
+test('el módulo de YouTube conserva las reglas de red al cambiar su interruptor', () => {
+  assert.deepEqual(settingsRules(defaults), settingsRules({ ...defaults, youtube: false }));
+  assert.equal(settingsRules(defaults).some(rule => rule.action.type === 'redirect'), false);
 });
 
 test('Twitch distingue segmentos publicitarios y mantiene los del directo', async () => {
