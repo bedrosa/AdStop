@@ -6087,3 +6087,14 @@ northeast.aaa.com##+js(set, _uxa.push, noopFunc)
 ! https://github.com/uBlockOrigin/uAssets/issues/34937
 roaringapps.com##+js(set, Sentry, {})
 roaringapps.com##+js(set, Sentry.onLoad, noopFunc)
+
+! https://github.com/uBlockOrigin/uAssets/issues/34997
+funradio.fr##+js(trusted-replace-outbound-text, String.prototype.trim, /^STOP_GTM_WARNING$/, IMA_ADS)
+funradio.fr##+js(trusted-set, getUserConsentStatus, json:{"dailymotion":true}, as, function)
+
+! https://github.com/uBlockOrigin/uAssets/issues/34996
+@@||speedcubeshop.com/cdn/shopifycloud/consent-tracking-api/v*/consent-tracking-api.js$1p
+
+! https://github.com/AdguardTeam/AdguardFilters/issues/80265#issuecomment-818787175
+||log.nordot.jp^$badfilter
+||log.nordot.jp/pageview
