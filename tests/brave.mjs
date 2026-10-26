@@ -129,7 +129,7 @@ try {
     player.loadVideoById = (id, position) => { window.adstopErrorRecovery = { id, position }; };
     const error = document.createElement('div');
     error.className = 'ytp-error-content-wrap';
-    error.textContent = 'Se ha producido un error';
+    error.textContent = '282054944';
     player.append(error);
     player.classList.add('ytp-error');
     const video = player.querySelector('video');

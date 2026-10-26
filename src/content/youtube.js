@@ -139,8 +139,8 @@ import { cleanPlayerResponse, isPlayerUrl, isAdblockFailure, rewritePlayerReques
       playbackError = undefined;
       return;
     }
-    const error = player.querySelector('.ytp-error-content-wrap, #error-screen');
-    if (player.classList.contains('ytp-error') && error?.getClientRects().length && /se ha producido un error|an error (?:has )?occurred/i.test(error.textContent)) {
+    const error = document.querySelector('#movie_player.ytp-error .ytp-error-content-wrap, ytd-watch-flexy yt-playability-error-supported-renderers#error-screen');
+    if (error?.getClientRects().length && /\b282054944\b|se ha producido un (?:error|problema)|an error (?:has )?occurred|something went wrong/i.test(error.textContent)) {
       if (!playbackError || playbackError.video !== video || playbackError.source !== video.currentSrc || video.currentTime < playbackError.time) {
         playbackError = { video, source: video.currentSrc, time: video.currentTime, since: Date.now() };
       } else if (Date.now() - playbackError.since >= 2000 && video.currentTime - playbackError.time >= 1) {
