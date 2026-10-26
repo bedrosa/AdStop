@@ -400,6 +400,54 @@ try {
     assert.deepEqual(data.license.adSlots, [1]);
     await page.evaluate(() => { delete document.querySelector('#movie_player').getPlayerResponse; });
   });
+  await check('YouTube recupera el 282054944 detenido, sin metadatos ni reproducción de fondo', async () => {
+    for (const modern of [false, true]) {
+      const stopped = await context.newPage();
+      await stopped.goto(`http://www.youtube.com:${port}/watch?v=stopped-video`);
+      await stopped.bringToFront();
+      await stopped.evaluate(modern => {
+        const player = document.querySelector('#movie_player');
+        player.getPlayerResponse = () => ({ playabilityStatus: { status: 'ERROR' } });
+        if (modern) player.querySelector('video').remove();
+        player.loadVideoById = (id, position) => {
+          window.adstopStoppedRecovery = { id, position };
+          (async () => {
+            const response = await (await fetch('/youtubei/v1/player', { method: 'POST', body: JSON.stringify({ videoId: id, context: { client: { clientName: 'WEB' } }, playbackContext: { contentPlaybackContext: { referer: location.href } } }) })).json();
+            window.adstopRecoveryBody = response.requestBody;
+            const video = player.querySelector('video') || player.appendChild(document.createElement('video'));
+            video.src = '/playback.webm';
+            video.muted = false;
+            await video.play();
+            document.querySelector('.ytp-error-content-wrap, #error-screen').remove();
+            player.classList.remove('ytp-error');
+            window.adstopStoppedReady = true;
+          })().catch(error => { window.adstopStoppedFailure = error.message; });
+        };
+        const error = document.createElement(modern ? 'yt-playability-error-supported-renderers' : 'div');
+        error.textContent = 'Se ha producido un error. Vuelve a intentarlo más tarde. 282054944';
+        if (modern) {
+          error.id = 'error-screen';
+          const watch = document.createElement('ytd-watch-flexy');
+          watch.append(error);
+          document.body.append(watch);
+        } else {
+          error.className = 'ytp-error-content-wrap';
+          player.append(error);
+          player.classList.add('ytp-error');
+        }
+      }, modern);
+      await stopped.waitForFunction(() => window.adstopStoppedReady || window.adstopStoppedFailure);
+      const result = await stopped.evaluate(() => ({ recovery: window.adstopStoppedRecovery, body: window.adstopRecoveryBody, error: window.adstopStoppedFailure }));
+      assert.equal(result.error, undefined);
+      assert.deepEqual(result.recovery, { id: 'stopped-video', position: 0 });
+      assert.equal(result.body.context.client.clientScreen, 'CHANNEL');
+      assert.match(result.body.playbackContext.contentPlaybackContext.lactMilliseconds, /^\d+$/);
+      assert.equal(result.body.playbackContext.contentPlaybackContext.referer, `${stopped.url()}#reloadxhr`);
+      await stopped.waitForFunction(() => document.querySelector('video').getVideoPlaybackQuality().totalVideoFrames >= 5);
+      assert.equal(await stopped.locator('video').evaluate(video => video.muted), false);
+      await stopped.close();
+    }
+  });
   await check('el módulo de YouTube evita duplicar scriptlets y respeta su interruptor', async () => {
     let scripts = await worker.evaluate(() => chrome.scripting.getRegisteredContentScripts());
     assert.ok(scripts.find(script => script.id === 'scriptlets').excludeMatches.includes('*://*.youtube.com/*'));

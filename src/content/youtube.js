@@ -89,13 +89,12 @@ import { cleanPlayerResponse, isPlayerUrl, isAdblockFailure, rewritePlayerReques
 
   const dismissed = new WeakSet();
   function reloadPlayer(player, video, response, blocked) {
-    const videoId = response?.videoDetails?.videoId;
-    if (!videoId || typeof player.loadVideoById !== 'function' || recovery.attempts >= 2 || Date.now() - recovery.lastAttempt < 15000) return;
-    recovery.videoId = videoId;
+    const videoId = recovery.videoId;
+    if (!videoId || typeof player?.loadVideoById !== 'function' || recovery.attempts >= 2 || Date.now() - recovery.lastAttempt < 15000) return;
     recovery.attempts++;
     recovery.lastAttempt = Date.now();
     if (blocked) recovery.mode = recovery.attempts === 1 ? 'channel' : 'lactmilli';
-    const position = video?.currentTime || response.playerConfig?.playbackStartConfig?.startSeconds || 0;
+    const position = Number.isFinite(video?.currentTime) ? video.currentTime : response?.playerConfig?.playbackStartConfig?.startSeconds || 0;
     player.loadVideoById(videoId, position);
     frames = undefined;
     playbackError = undefined;
@@ -105,8 +104,10 @@ import { cleanPlayerResponse, isPlayerUrl, isAdblockFailure, rewritePlayerReques
     const player = document.querySelector('#movie_player, #player');
     const video = player?.querySelector('video');
     const response = player?.getPlayerResponse?.();
-    if (response?.videoDetails?.videoId && response.videoDetails.videoId !== recovery.videoId) {
-      recovery = { videoId: response.videoDetails.videoId, attempts: 0, lastAttempt: 0, mode: '' };
+    const url = new URL(location.href);
+    const videoId = response?.videoDetails?.videoId || (url.pathname === '/watch' ? url.searchParams.get('v') : url.pathname.match(/^\/(?:embed|shorts)\/([^/]+)/)?.[1]);
+    if (videoId && videoId !== recovery.videoId) {
+      recovery = { videoId, attempts: 0, lastAttempt: 0, mode: '' };
       frames = undefined;
       playbackError = undefined;
     }
@@ -127,6 +128,23 @@ import { cleanPlayerResponse, isPlayerUrl, isAdblockFailure, rewritePlayerReques
       reloadPlayer(player, video, response, true);
       return;
     }
+    const error = document.querySelector('#movie_player.ytp-error .ytp-error-content-wrap, ytd-watch-flexy yt-playability-error-supported-renderers#error-screen');
+    const code = /\b282054944\b/.test(error?.textContent || '');
+    const status = response?.playabilityStatus;
+    const protectedError = status && (!['OK', 'ERROR', 'UNPLAYABLE'].includes(status.status) || status.errorScreen?.playerErrorMessageRenderer?.playerCaptchaViewModel);
+    if (
+      !protectedError && error?.getClientRects().length && document.visibilityState === 'visible' && !video?.seeking && !video?.ended &&
+      (code || (video && !video.paused && /se ha producido un (?:error|problema)|an error (?:has )?occurred|something went wrong/i.test(error.textContent)))
+    ) {
+      if (!playbackError || playbackError.video !== video || playbackError.source !== video?.currentSrc || (video?.currentTime || 0) < playbackError.time) {
+        playbackError = { video, source: video?.currentSrc, time: video?.currentTime || 0, since: Date.now() };
+      } else if (Date.now() - playbackError.since >= 2000 && (code || video.currentTime - playbackError.time >= 1)) {
+        reloadPlayer(player, video, response, code);
+      }
+      frames = undefined;
+      return;
+    }
+    playbackError = undefined;
     if (showing && video) {
       const skip = player.querySelector('.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern');
       if (skip && !skip.disabled && skip.getClientRects().length) skip.click();
@@ -139,15 +157,6 @@ import { cleanPlayerResponse, isPlayerUrl, isAdblockFailure, rewritePlayerReques
       playbackError = undefined;
       return;
     }
-    const error = document.querySelector('#movie_player.ytp-error .ytp-error-content-wrap, ytd-watch-flexy yt-playability-error-supported-renderers#error-screen');
-    if (error?.getClientRects().length && /\b282054944\b|se ha producido un (?:error|problema)|an error (?:has )?occurred|something went wrong/i.test(error.textContent)) {
-      if (!playbackError || playbackError.video !== video || playbackError.source !== video.currentSrc || video.currentTime < playbackError.time) {
-        playbackError = { video, source: video.currentSrc, time: video.currentTime, since: Date.now() };
-      } else if (Date.now() - playbackError.since >= 2000 && video.currentTime - playbackError.time >= 1) {
-        reloadPlayer(player, video, response, false);
-        return;
-      }
-    } else playbackError = undefined;
     if (!video.videoWidth) {
       frames = undefined;
       return;

@@ -39,11 +39,13 @@ export function rewritePlayerRequest(text, videoId, mode) {
     const body = JSON.parse(text);
     const client = body.context?.client;
     if (body.videoId !== videoId || client?.clientName !== 'WEB' || !body.playbackContext?.contentPlaybackContext) return text;
+    const playback = body.playbackContext.contentPlaybackContext;
     if (mode === 'channel') client.clientScreen = 'CHANNEL';
     else if (mode === 'lactmilli') {
       body.params = '8AUB';
-      body.playbackContext.contentPlaybackContext.lactMilliseconds = String(Date.now());
     } else return text;
+    playback.lactMilliseconds = String(Date.now());
+    if (typeof playback.referer === 'string') playback.referer = playback.referer.replace(/(?:#reloadxhr)?$/, '#reloadxhr');
     return JSON.stringify(body);
   } catch {
     return text;

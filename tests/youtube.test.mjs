@@ -6,12 +6,12 @@ import { readFile } from 'node:fs/promises';
 const source = (await readFile('src/shared/youtube.js', 'utf8')).replaceAll('export function ', 'function ') + (await readFile('src/content/youtube.js', 'utf8')).replace(/^import[^\n]+\n/, '');
 
 function fixture() {
-  const state = { now: 100000, rendered: 20, reloads: [], sent: [], showing: false, errorText: '', errorVisible: true };
+  const state = { now: 100000, rendered: 20, reloads: [], sent: [], showing: false, hasVideo: true, errorText: '', errorVisible: true };
   const video = { currentTime: 42, currentSrc: 'blob:contenido', videoWidth: 1280, paused: false, ended: false, seeking: false, muted: false, playbackRate: 1.25, duration: 120, getVideoPlaybackQuality: () => ({ totalVideoFrames: state.rendered, droppedVideoFrames: 0 }) };
   state.response = { videoDetails: { videoId: 'video-1' }, playabilityStatus: { status: 'OK' } };
   const skip = { disabled: false, getClientRects: () => [1], click: () => { state.showing = false; } };
   const error = { get textContent() { return state.errorText; }, getClientRects: () => state.errorVisible ? [1] : [] };
-  const player = { querySelector: selector => selector === 'video' ? video : skip, classList: { contains: () => state.showing }, getPlayerResponse: () => state.response, loadVideoById: (...args) => state.reloads.push(args) };
+  const player = { querySelector: selector => selector === 'video' ? state.hasVideo ? video : null : skip, classList: { contains: () => state.showing }, getPlayerResponse: () => state.response, loadVideoById: (...args) => state.reloads.push(args) };
   const document = { visibilityState: 'visible', querySelector: selector => selector === '#movie_player, #player' ? player : selector.includes('yt-playability-error-supported-renderers') ? error : null, addEventListener() {} };
   class Xhr {
     open(method, url) { this.method = method; this.url = url; }
@@ -112,6 +112,49 @@ test('reconoce el código 282054944 sin depender del idioma del mensaje', () => 
   video.currentTime += 2;
   state.tick();
   assert.deepEqual(state.reloads, [['video-1', 44]]);
+});
+
+test('recupera el código 282054944 sin audio, con el vídeo pausado o sin elemento de vídeo', async () => {
+  for (const scenario of ['paused', 'no-video', 'no-response', 'no-details', 'stale-ad']) {
+    const { state, video, context } = fixture();
+    state.errorText = '282054944';
+    video.paused = true;
+    video.currentTime = 0;
+    if (scenario === 'no-video') state.hasVideo = false;
+    if (scenario === 'no-response') state.response = undefined;
+    if (scenario === 'no-details') delete state.response.videoDetails;
+    if (scenario === 'stale-ad') state.showing = true;
+    state.tick();
+    state.now += 2001;
+    state.tick();
+    assert.deepEqual(state.reloads, [['video-1', 0]], scenario);
+    const body = JSON.stringify({ videoId: 'video-1', context: { client: { clientName: 'WEB' } }, playbackContext: { contentPlaybackContext: {} } });
+    await context.fetch('/youtubei/v1/player', { method: 'POST', body });
+    assert.equal(JSON.parse(state.sent.at(-1)[1].body).context.client.clientScreen, 'CHANNEL', scenario);
+    state.tick();
+    state.now += 15001;
+    state.tick();
+    state.now += 15001;
+    state.tick();
+    assert.equal(state.reloads.length, 2, scenario);
+  }
+});
+
+test('el código visible no reintenta captchas, errores de cuenta, búsquedas ni errores ocultos', () => {
+  for (const scenario of ['hidden', 'captcha', 'login', 'age', 'seeking']) {
+    const { state, video } = fixture();
+    state.errorText = '282054944';
+    video.paused = true;
+    if (scenario === 'hidden') state.errorVisible = false;
+    if (scenario === 'captcha') state.response.playabilityStatus.errorScreen = { playerErrorMessageRenderer: { playerCaptchaViewModel: {} } };
+    if (scenario === 'login') state.response.playabilityStatus.status = 'LOGIN_REQUIRED';
+    if (scenario === 'age') state.response.playabilityStatus.status = 'AGE_CHECK_REQUIRED';
+    if (scenario === 'seeking') video.seeking = true;
+    state.tick();
+    state.now += 2001;
+    state.tick();
+    assert.deepEqual(state.reloads, [], scenario);
+  }
 });
 
 test('un bloqueo reintenta el mismo vídeo sin bucles y vuelve a empezar al navegar a otro', () => {

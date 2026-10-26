@@ -136,13 +136,24 @@ test('los reintentos modifican solo el cuerpo del vídeo afectado y conservan el
   assert.equal(rewritePlayerRequest('{', 'video-1', 'channel'), '{');
   const channel = JSON.parse(rewritePlayerRequest(text, 'video-1', 'channel'));
   assert.equal(channel.context.client.clientScreen, 'CHANNEL');
-  assert.deepEqual(channel, { ...body, context: { ...body.context, client: { ...body.context.client, clientScreen: 'CHANNEL' } } });
+  assert.match(channel.playbackContext.contentPlaybackContext.lactMilliseconds, /^\d+$/);
+  assert.deepEqual(channel, { ...body, context: { ...body.context, client: { ...body.context.client, clientScreen: 'CHANNEL' } }, playbackContext: { contentPlaybackContext: { signatureTimestamp: 12345, lactMilliseconds: channel.playbackContext.contentPlaybackContext.lactMilliseconds } } });
   const second = JSON.parse(rewritePlayerRequest(text, 'video-1', 'lactmilli'));
   assert.equal(second.params, '8AUB');
   assert.match(second.playbackContext.contentPlaybackContext.lactMilliseconds, /^\d+$/);
   assert.equal(second.playbackContext.contentPlaybackContext.signatureTimestamp, 12345);
   assert.equal(body.context.client.clientScreen, 'WATCH');
   assert.equal(rewritePlayerRequest(JSON.stringify({ ...body, context: { client: { clientName: 'WEB_REMIX' } } }), 'video-1', 'channel'), JSON.stringify({ ...body, context: { client: { clientName: 'WEB_REMIX' } } }));
+});
+
+test('los reintentos identifican la recarga sin duplicar el marcador ni modificar el contexto original', () => {
+  const body = { videoId: 'video-1', context: { client: { clientName: 'WEB' } }, playbackContext: { contentPlaybackContext: { referer: 'https://www.youtube.com/watch?v=video-1', signatureTimestamp: 123 } } };
+  const first = rewritePlayerRequest(JSON.stringify(body), 'video-1', 'channel');
+  const second = JSON.parse(rewritePlayerRequest(first, 'video-1', 'lactmilli'));
+  assert.equal(second.playbackContext.contentPlaybackContext.referer, 'https://www.youtube.com/watch?v=video-1#reloadxhr');
+  assert.equal(second.playbackContext.contentPlaybackContext.signatureTimestamp, 123);
+  assert.equal(body.playbackContext.contentPlaybackContext.referer, 'https://www.youtube.com/watch?v=video-1');
+  assert.equal(second.params, '8AUB');
 });
 
 test('YouTube retira solo el aviso antibloqueo del reproductor y conserva otros mensajes y errores', () => {
