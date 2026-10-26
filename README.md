@@ -107,7 +107,7 @@ npm.cmd run test:browser
 
 `npm.cmd run check` ejecuta las pruebas de reglas, compila y pasa las comprobaciones de navegador. Los resultados y capturas se guardan en `test-results`. El navegador de pruebas se ejecuta sin ventana y con un perfil temporal propio. `npm.cmd run test:brave` permite comprobar la instalación y las reglas personales en Brave si está instalado en su ruta habitual de Windows.
 
-El flujo de GitHub Actions comprueba cambios y prepara un paquete actualizado los lunes a las 05:20 UTC. Utiliza Ubuntu 24.04 para mantener la compatibilidad con la versión fijada de Playwright. GitHub puede retrasar el inicio de los trabajos programados. Los paquetes de cada ejecución se pueden descargar desde sus artefactos. Las versiones publicadas están en Releases. No publica en tiendas ni cambia automáticamente la instalación de tu navegador.
+El flujo de GitHub Actions comprueba cada PR y los cambios de `main` y de las etiquetas de versión, sin duplicar las comprobaciones de una rama con PR abierta. Prepara además un paquete actualizado los lunes a las 05:20 UTC. Utiliza Ubuntu 24.04 para mantener la compatibilidad con la versión fijada de Playwright. GitHub puede retrasar el inicio de los trabajos programados. Los paquetes de cada ejecución se pueden descargar desde sus artefactos. Las versiones publicadas están en Releases. No publica en tiendas ni cambia automáticamente la instalación de tu navegador.
 
 ## Estructura
 
