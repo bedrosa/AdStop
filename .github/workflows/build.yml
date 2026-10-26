@@ -25,7 +25,7 @@ jobs:
       - name: Actualizar listas para paquetes semanales
         if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
         run: npm run filters:update
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install chromium
       - run: npm run check
       - run: npm run package
       - uses: actions/upload-artifact@v4
