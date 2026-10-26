@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 import { defaults, normalizeDomain, settingsRules, validateSettings, siteEnabled } from '../src/shared/settings.js';
 import { matchesScope, selectCosmetic } from '../src/shared/cosmetic.js';
-import { cleanPlayerResponse, isPlayerUrl } from '../src/shared/youtube.js';
+import { cleanPlayerResponse, isPlayerUrl, isAdblockFailure, rewritePlayerRequest } from '../src/shared/youtube.js';
 import { parseLists, preprocess, splitRules } from '../scripts/filter-tools.mjs';
 import { netflix } from '../src/shared/netflix.js';
 
@@ -112,6 +112,37 @@ test('YouTube conserva el contenido y retira solo las claves publicitarias previ
   assert.equal(isPlayerUrl('/youtubei/v1/player?key=uno', 'https://www.youtube.com'), true);
   assert.equal(isPlayerUrl('https://falsoyoutube.com/youtubei/v1/player', 'https://www.youtube.com'), false);
   assert.equal(isPlayerUrl('/youtubei/v1/player_settings', 'https://www.youtube.com'), false);
+  assert.equal(isPlayerUrl('/youtubei/v1/get_watch?prettyPrint=false', 'https://www.youtube.com'), true);
+  assert.equal(isPlayerUrl('/youtubei/v1/player/get_drm_license', 'https://www.youtube.com'), false);
+  assert.equal(isPlayerUrl('data:application/json,{}', 'https://www.youtube.com'), false);
+});
+
+test('la recuperación de YouTube distingue el bloqueo de los errores de cuenta y los captchas', () => {
+  const response = { playabilityStatus: { status: 'UNPLAYABLE', errorScreen: { playerErrorMessageRenderer: { subreason: { runs: [{ navigationEndpoint: { commandMetadata: { webCommandMetadata: { webPageType: 'WEB_PAGE_TYPE_UNKNOWN', url: 'https://support.google.com/youtube/answer/3037019' } } } }] } } } } };
+  assert.equal(isAdblockFailure(response), true);
+  for (const status of ['OK', 'LOGIN_REQUIRED', 'AGE_CHECK_REQUIRED', 'ERROR']) assert.equal(isAdblockFailure({ ...response, playabilityStatus: { ...response.playabilityStatus, status } }), false);
+  response.playabilityStatus.errorScreen.playerErrorMessageRenderer.playerCaptchaViewModel = {};
+  assert.equal(isAdblockFailure(response), false);
+  delete response.playabilityStatus.errorScreen.playerErrorMessageRenderer.playerCaptchaViewModel;
+  response.playabilityStatus.errorScreen.playerErrorMessageRenderer.subreason.runs[0].navigationEndpoint.commandMetadata.webCommandMetadata.url = 'https://example.com/3037019';
+  assert.equal(isAdblockFailure(response), false);
+});
+
+test('los reintentos modifican solo el cuerpo del vídeo afectado y conservan el resto del contexto', () => {
+  const body = { videoId: 'video-1', context: { client: { clientName: 'WEB', clientScreen: 'WATCH', userAgent: 'Navegador' }, user: { lockedSafetyMode: true } }, playbackContext: { contentPlaybackContext: { signatureTimestamp: 12345 } }, attestationRequest: { token: 'token' } };
+  const text = JSON.stringify(body);
+  assert.equal(rewritePlayerRequest(text, 'video-1', ''), text);
+  assert.equal(rewritePlayerRequest(text, 'otro-video', 'channel'), text);
+  assert.equal(rewritePlayerRequest('{', 'video-1', 'channel'), '{');
+  const channel = JSON.parse(rewritePlayerRequest(text, 'video-1', 'channel'));
+  assert.equal(channel.context.client.clientScreen, 'CHANNEL');
+  assert.deepEqual(channel, { ...body, context: { ...body.context, client: { ...body.context.client, clientScreen: 'CHANNEL' } } });
+  const second = JSON.parse(rewritePlayerRequest(text, 'video-1', 'lactmilli'));
+  assert.equal(second.params, '8AUB');
+  assert.match(second.playbackContext.contentPlaybackContext.lactMilliseconds, /^\d+$/);
+  assert.equal(second.playbackContext.contentPlaybackContext.signatureTimestamp, 12345);
+  assert.equal(body.context.client.clientScreen, 'WATCH');
+  assert.equal(rewritePlayerRequest(JSON.stringify({ ...body, context: { client: { clientName: 'WEB_REMIX' } } }), 'video-1', 'channel'), JSON.stringify({ ...body, context: { client: { clientName: 'WEB_REMIX' } } }));
 });
 
 test('YouTube retira solo el aviso antibloqueo del reproductor y conserva otros mensajes y errores', () => {

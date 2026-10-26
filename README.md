@@ -66,7 +66,9 @@ Netflix incorpora una adaptación del script de Pie para neutralizar propiedades
 
 YouTube tiene un módulo local para limpiar datos publicitarios y el mensaje de detección en la respuesta inicial y en respuestas reales del reproductor recibidas por fetch y XMLHttpRequest. Conserva JSON.parse y las respuestas sintéticas para evitar alterar las comprobaciones internas de la página. La comprobación ad_status.js se sustituye por un script local, limitado a YouTube, sin descargar publicidad de ese servidor. Los scriptlets generales se excluyen de YouTube mientras está activo este módulo para evitar aplicar varias modificaciones sobre las mismas API.
 
-Si aparece un aviso antibloqueo que admite cierre, el módulo utiliza su botón nativo y reanuda el reproductor. No cierra otros diálogos ni convierte errores de cuenta, edad o disponibilidad en respuestas de reproducción válidas. También pulsa los botones de salto detectados y silencia o acelera los anuncios cortos que llegan a mostrarse.
+Si aparece un aviso antibloqueo que admite cierre, el módulo utiliza su botón nativo y reanuda el reproductor. No cierra otros diálogos ni convierte errores de cuenta, edad o disponibilidad en respuestas de reproducción válidas. Pulsa los botones de salto visibles sin alterar la velocidad ni el audio del vídeo.
+
+La limpieza incluye `player`, `get_watch` y `next`, sin modificar las solicitudes de licencias DRM. Ante el error de reproducción identificado por las reglas de uBlock, intenta volver a cargar el mismo vídeo desde su posición con un contexto alternativo limitado a las solicitudes de ese vídeo. También intenta recuperar el reproductor si el tiempo avanza durante seis segundos sin nuevos fotogramas, o si muestra el error genérico de reproducción mientras el vídeo sigue avanzando por detrás durante dos segundos. Hay como máximo dos reintentos por vídeo, separados al menos quince segundos. No recarga por pausas, búsquedas, anuncios ni pestañas ocultas. Esta recuperación sigue una estrategia acotada de los [filtros de uBlock Origin](https://github.com/uBlockOrigin/uAssets/blob/master/filters/quick-fixes.txt), sin ejecutar las reglas de inyección que la biblioteca no admite.
 
 Twitch integra vaft de TwitchAdSolutions, fijado a una revisión concreta y distribuido con su licencia MIT. Intenta obtener una variante del directo sin publicidad y evita reproducir los segmentos identificados como anuncios. Puede haber pausas, bajadas de calidad o anuncios que se escapen. Su repositorio original fue archivado en marzo de 2026, por lo que este módulo necesita seguimiento propio. No utiliza un servicio de proxy externo.
 
@@ -105,7 +107,7 @@ npm.cmd run test:browser
 
 `npm.cmd run check` ejecuta las pruebas de reglas, compila y pasa las comprobaciones de navegador. Los resultados y capturas se guardan en `test-results`. El navegador de pruebas se ejecuta sin ventana y con un perfil temporal propio. `npm.cmd run test:brave` permite comprobar la instalación y las reglas personales en Brave si está instalado en su ruta habitual de Windows.
 
-El flujo de GitHub Actions comprueba cambios y prepara un paquete actualizado semanalmente. Los paquetes de cada ejecución se pueden descargar desde sus artefactos. Las versiones publicadas están en Releases. No publica en tiendas ni cambia automáticamente la instalación de tu navegador.
+El flujo de GitHub Actions comprueba cada PR y los cambios de `main` y de las etiquetas de versión, sin duplicar las comprobaciones de una rama con PR abierta. Prepara además un paquete actualizado los lunes a las 05:20 UTC. Utiliza Ubuntu 24.04 para mantener la compatibilidad con la versión fijada de Playwright. GitHub puede retrasar el inicio de los trabajos programados. Los paquetes de cada ejecución se pueden descargar desde sus artefactos. Las versiones publicadas están en Releases. No publica en tiendas ni cambia automáticamente la instalación de tu navegador.
 
 ## Estructura
 

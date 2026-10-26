@@ -1,5 +1,5 @@
 {
-  "downloadedAt": "2026-10-21T06:41:40.586Z",
+  "downloadedAt": "2026-10-26T19:12:18.421Z",
   "sources": [
     {
       "id": "ublock-fixes",
@@ -7,8 +7,8 @@
       "url": "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/quick-fixes.txt",
       "homepage": "https://github.com/uBlockOrigin/uAssets",
       "license": "GPL-3.0-only",
-      "sha256": "e885d6bd78d933a98804fdb19a7f1357cf54de9b32330013ab8b7fb54bd28c4f",
-      "bytes": 89123
+      "sha256": "c6cc1403f066f92da129178a855527b4948eafda4521f08741bed61e876f0ff1",
+      "bytes": 90364
     },
     {
       "id": "ublock-unbreak",
@@ -16,8 +16,8 @@
       "url": "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/unbreak.txt",
       "homepage": "https://github.com/uBlockOrigin/uAssets",
       "license": "GPL-3.0-only",
-      "sha256": "3a3ccd5eef22b0f37f801cacd48953aa9c7099fcd26a3a121c007de88847eb54",
-      "bytes": 280986
+      "sha256": "b6ab74c5afe5badc48758272a581d38968ff2caa7f24c746c6e573d2c0cf8f8d",
+      "bytes": 281520
     },
     {
       "id": "ublock",
@@ -25,8 +25,8 @@
       "url": "https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/filters.txt",
       "homepage": "https://github.com/uBlockOrigin/uAssets",
       "license": "GPL-3.0-only",
-      "sha256": "758e1160aa051f1a0b095a5e8a899f4d66aef9d2f7ac9e3b00241d3074f4b852",
-      "bytes": 471650
+      "sha256": "118d32ee30089ed3b8cecb30e63eb884bfd138dabd10d51fb3edcc8ef8acdad0",
+      "bytes": 471693
     },
     {
       "id": "pie",
@@ -43,8 +43,8 @@
       "url": "https://easylist.to/easylist/easyprivacy.txt",
       "homepage": "https://easylist.to/",
       "license": "GPL-3.0-or-later OR CC-BY-SA-3.0",
-      "sha256": "69ecadb79bd3526eeff0f36e36eb1062d56c634f8045c04c14ff83d5c6468179",
-      "bytes": 1510529
+      "sha256": "23685c9a0888e535f7810bdbcb453fd3da91a7ba76f4275c49b9f5ef7f1eb1ed",
+      "bytes": 1511389
     },
     {
       "id": "easylist",
@@ -52,8 +52,8 @@
       "url": "https://easylist.to/easylist/easylist.txt",
       "homepage": "https://easylist.to/",
       "license": "GPL-3.0-or-later OR CC-BY-SA-3.0",
-      "sha256": "7efdf11d2aba82cf0c096c2317cb80f291cd8b6fc0255e98218a4ea5d0069733",
-      "bytes": 2211837
+      "sha256": "a8988b77584f8869087c3b9f5e3dff0395789c751a5b518f6218cc9d220d7887",
+      "bytes": 1990512
     },
     {
       "id": "spanish",
@@ -61,7 +61,7 @@
       "url": "https://easylist-downloads.adblockplus.org/easylistspanish.txt",
       "homepage": "https://github.com/easylist/easylistspanish",
       "license": "GPL-3.0-or-later OR CC-BY-SA-3.0",
-      "sha256": "9d9ad1bd53d03bd303aa549e4c990cd35026120619a6d8e9f40739b1a33e9ad4",
+      "sha256": "4d64b8b19ec5ff1f00a98ff7416f7a02530bb087178d540de7c81fe50211ea77",
       "bytes": 128171
     }
   ],
