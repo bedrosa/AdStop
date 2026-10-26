@@ -138,6 +138,38 @@ try {
   });
   await page.waitForFunction(() => window.adstopErrorRecovery?.id === 'error-video');
   assert.ok(await page.evaluate(() => window.adstopErrorRecovery.position >= 1));
+  await context.route('https://www.youtube.com/youtubei/v1/player', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ requestBody: route.request().postDataJSON() }) }));
+  await page.reload();
+  await page.evaluate(() => {
+    const player = document.querySelector('#movie_player');
+    player.getPlayerResponse = () => ({ playabilityStatus: { status: 'ERROR' } });
+    player.loadVideoById = (id, position) => {
+      window.adstopStoppedRecovery = { id, position };
+      (async () => {
+        const response = await (await fetch('/youtubei/v1/player', { method: 'POST', body: JSON.stringify({ videoId: id, context: { client: { clientName: 'WEB' } }, playbackContext: { contentPlaybackContext: { referer: location.href } } }) })).json();
+        window.adstopRecoveryBody = response.requestBody;
+        const video = player.querySelector('video');
+        video.src = '/playback.webm';
+        video.muted = false;
+        await video.play();
+        window.adstopStoppedReady = true;
+      })().catch(error => { window.adstopStoppedFailure = error.message; });
+    };
+    const error = document.createElement('div');
+    error.className = 'ytp-error-content-wrap';
+    error.textContent = '282054944';
+    player.append(error);
+    player.classList.add('ytp-error');
+  });
+  await page.waitForFunction(() => window.adstopStoppedReady || window.adstopStoppedFailure);
+  const stopped = await page.evaluate(() => ({ recovery: window.adstopStoppedRecovery, body: window.adstopRecoveryBody, error: window.adstopStoppedFailure }));
+  assert.equal(stopped.error, undefined);
+  assert.deepEqual(stopped.recovery, { id: 'adstop-test', position: 0 });
+  assert.equal(stopped.body.context.client.clientScreen, 'CHANNEL');
+  assert.match(stopped.body.playbackContext.contentPlaybackContext.lactMilliseconds, /^\d+$/);
+  assert.equal(stopped.body.playbackContext.contentPlaybackContext.referer, `${page.url()}#reloadxhr`);
+  await page.waitForFunction(() => document.querySelector('video').getVideoPlaybackQuality().totalVideoFrames >= 5);
+  assert.equal(await page.locator('video').evaluate(video => video.muted), false);
   await writeFile(path.join(resultsRoot, 'brave-checks.json'), JSON.stringify({ browser: await context.browser().version(), checks: ['Instalación', 'Listas completas', 'Bloqueo dinámico', 'Excepciones', 'Pausa general', 'Modo oscuro compartido y guardado', 'Icono gris al desactivar', 'YouTube con pruebas sintéticas, recurso local y cierre del aviso', 'Decodificación real de vídeo tras saltar un anuncio sin alterar su velocidad', 'Recuperación del error visible con reproducción de fondo'], livePlatformsTested: false }, null, 2));
   console.log('Brave: bloqueo, ajustes, iconos y corrección antibloqueo de YouTube comprobados');
 } finally {
